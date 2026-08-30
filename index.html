@@ -17,6 +17,10 @@
     .flag{height:4px;background:linear-gradient(90deg,var(--gold) 0 34%,var(--navy) 34% 72%,var(--green) 72%)}
     .login{min-height:100vh;display:grid;place-items:center;padding:24px}.login-card{width:min(100%,470px);background:rgba(255,255,255,.97);border:1px solid rgba(0,123,133,.15);border-radius:28px;overflow:hidden;box-shadow:var(--shadow)}.login-body{padding:30px}.brand{display:flex;align-items:center;gap:14px}.brand-mark{width:64px;height:64px;border-radius:20px;display:grid;place-items:center;background:linear-gradient(135deg,var(--navy),var(--teal));color:#fff;font-weight:900;font-size:1.15rem}.brand h1{margin:0;color:var(--navy);font-size:1.35rem;line-height:1.05}.brand p{margin:5px 0 0;color:var(--teal);font-size:.76rem;font-weight:850;text-transform:uppercase;letter-spacing:.06em}.copy{margin:22px 0;color:var(--muted);line-height:1.55}.field{display:grid;gap:7px}.field+.field{margin-top:13px}.field label{font-size:.75rem;font-weight:900;color:#4f6678;text-transform:uppercase;letter-spacing:.05em}.control{width:100%;min-height:48px;border:1px solid var(--line);border-radius:13px;padding:11px 13px;background:#f9fbfc;color:var(--ink);outline:0}.control:focus{background:#fff;border-color:var(--teal);box-shadow:0 0 0 4px rgba(0,123,133,.1)}textarea.control{min-height:120px;resize:vertical}.btn{border:0;border-radius:13px;min-height:46px;padding:10px 15px;font-weight:900}.btn-primary{color:#fff;background:linear-gradient(135deg,var(--teal),var(--navy));box-shadow:0 8px 20px rgba(0,123,133,.2)}.btn-secondary{color:var(--navy);background:#edf4f7;border:1px solid var(--line)}.btn-full{width:100%;margin-top:18px}.error{margin-top:13px;padding:11px 13px;border-radius:12px;background:#fff0f0;border:1px solid #ffd2d2;color:#9f2222;font-size:.82rem;font-weight:750}
     .topbar{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.94);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}.topbar-inner{max-width:1240px;margin:auto;min-height:68px;padding:8px 16px;display:flex;align-items:center;gap:12px}.top-title{font-weight:900;color:var(--navy)}.top-sub{font-size:.72rem;color:var(--teal);font-weight:800}.user{margin-left:auto;display:flex;align-items:center;gap:8px}.chip{max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid var(--line);border-radius:999px;background:#fff;padding:8px 11px;font-size:.76rem;font-weight:800}.main{max-width:1240px;margin:auto;padding:20px 14px 80px}.hero{margin:5px 0 18px}.hero h2{margin:0;color:var(--navy);font-size:clamp(1.55rem,4vw,2.3rem)}.hero p{margin:7px 0 0;color:var(--muted)}.grid{display:grid;grid-template-columns:1fr;gap:15px}.card{background:#fff;border:1px solid var(--line);border-radius:20px;padding:17px;box-shadow:0 9px 28px rgba(0,32,91,.06)}.card h3{margin:0 0 14px;color:var(--navy);font-size:1.03rem}.row{display:grid;grid-template-columns:1fr;gap:11px}.pills{display:flex;gap:8px;flex-wrap:wrap}.pill{border:1px solid var(--line);background:#fff;color:#52697a;border-radius:999px;padding:9px 12px;font-weight:800}.pill.active{background:#e7f5f6;border-color:#76c6ca;color:#006871}.status{margin-top:11px;padding:10px 12px;border-radius:12px;background:#f1f5f9;color:#536779;font-size:.82rem}.status.ok{background:#edf9ef;color:#35753a}.status.warn{background:#fff8e5;color:#7a5900}.status.err{background:#fff0f0;color:#9f2222}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}.actions .btn{flex:1}.small{font-size:.8rem;color:var(--muted);line-height:1.5}.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:12px}.kpi{border:1px solid var(--line);border-radius:13px;padding:11px;background:#f9fbfc}.kpi strong{display:block;color:var(--navy);font-size:1.35rem}.code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+
+    .mode-block{margin-bottom:13px}.mode-label{display:block;margin-bottom:8px;font-size:.75rem;font-weight:900;color:#4f6678;text-transform:uppercase;letter-spacing:.05em}
+    .library-info{margin-top:12px;padding:14px 15px;border:1px solid #d9ebee;border-radius:16px;background:linear-gradient(180deg,#f8fcfc,#f4fafb)}
+    .library-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px;color:var(--navy);font-weight:900}.library-badge{display:inline-flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:999px;background:#e7f5f6;color:#006871;font-size:.72rem;font-weight:900;border:1px solid #b8dee1}.library-desc{margin:0;color:var(--ink);line-height:1.55}.library-meta{display:grid;gap:8px;margin-top:11px}.library-meta div{padding:9px 10px;border-radius:11px;background:#fff;border:1px solid #e3edf1}.library-meta strong{display:block;color:var(--navy);font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}.recommend-box{margin:10px 0 13px;padding:12px;border-radius:14px;background:#fff8e5;border:1px solid #f4df9b}.recommend-box .actions{margin-top:9px}.recommend-result{margin-top:9px;font-size:.84rem;line-height:1.5}.muted-note{font-size:.78rem;color:var(--muted);line-height:1.5;margin:7px 0 0}
     @media(min-width:820px){.grid{grid-template-columns:360px 1fr}.row.two{grid-template-columns:1fr 1fr}.actions .btn{flex:0 0 auto}}
   </style>
 </head>
@@ -60,9 +64,32 @@
 
       <section class="card">
         <h3>3. Diseño de actividad</h3>
+        <div class="mode-block">
+          <span class="mode-label">¿Quién decide el tipo de actividad?</span>
+          <div class="pills" id="creationModePills">
+            <button class="pill active" data-creation-mode="choose">Yo elijo el H5P</button>
+            <button class="pill" data-creation-mode="recommend">Que Gemini me recomiende</button>
+          </div>
+        </div>
+        <div class="field"><label>¿Qué actividad quieres crear?</label><textarea id="activityRequest" class="control" placeholder="Ej. Quiero que el trabajador observe una imagen de un almacén e identifique 8 peligros de incendio."></textarea></div>
+        <p class="muted-note">Describe la interacción que quieres: cantidad de preguntas, uso de imagen o video, arrastrar elementos, decisiones, recorrido, juego, etc.</p>
+        <div id="recommendBox" class="recommend-box" hidden>
+          <strong style="color:var(--navy)">Recomendación de H5P</strong>
+          <div class="actions"><button id="recommendBtn" class="btn btn-secondary">Recomendar actividad</button></div>
+          <div id="recommendResult" class="recommend-result">Describe primero la actividad que deseas crear.</div>
+        </div>
         <div class="row two">
           <div class="field"><label>Tipo H5P</label><select id="library" class="control"><option>Sincroniza Moodle primero</option></select></div>
           <div class="field"><label>Versión</label><select id="version" class="control"><option>—</option></select></div>
+        </div>
+        <div id="libraryInfo" class="library-info" hidden>
+          <div class="library-title"><span id="libraryTitleText">Actividad H5P</span><span id="libraryMachineBadge" class="library-badge">—</span></div>
+          <p id="libraryDescription" class="library-desc"></p>
+          <div class="library-meta">
+            <div><strong>Ideal para</strong><span id="libraryIdeal"></span></div>
+            <div><strong>¿Qué hace el participante?</strong><span id="libraryParticipant"></span></div>
+            <div><strong>Uso en móvil</strong><span id="libraryMobile"></span></div>
+          </div>
         </div>
         <div style="height:11px"></div>
         <div class="row two">
@@ -88,47 +115,9 @@
     </div>
   </main>
 </section>
-<script>
-const SUPABASE_URL='https://lfdmbkzghnwvsapxypvt.supabase.co';
-const SUPABASE_KEY='sb_publishable_bRnkA6PA8-v073nrw9zxiQ_8rVGiOn1';
-const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-const $=id=>document.getElementById(id);
-let registry=null, engine='gemini-flash';
-const help={
-  'gemini-flash':'Gemini Flash automático. Ideal para la mayoría de actividades.',
-  'gemini-pro':'Gemini Pro automático. Recomendado para estructuras complejas y escenarios.',
-  'manual-chatgpt':'Modo manual: copia el prompt, úsalo en ChatGPT y pega el JSON.',
-  'manual-gemini':'Modo manual: copia el prompt, úsalo en tu Gemini y pega el JSON.'
-};
-function showLogin(message=''){$('loginView').hidden=false;$('appView').hidden=true;$('loginError').hidden=!message;$('loginError').textContent=message}
-function showApp(email){$('loginView').hidden=true;$('appView').hidden=false;$('adminEmail').textContent=email||'Administrador'}
-async function ensureAdmin(){
-  const {data:{session}}=await sb.auth.getSession();
-  if(!session){showLogin();return false}
-  const {error}=await sb.rpc('admin_gestion_resumen');
-  if(error){await sb.auth.signOut();showLogin('La cuenta existe, pero no tiene permiso administrativo para esta herramienta.');return false}
-  showApp(session.user.email);return true;
-}
-$('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('loginError').hidden=true;const {error}=await sb.auth.signInWithPassword({email:$('loginEmail').value.trim(),password:$('loginPassword').value});if(error)return showLogin(error.message||'No fue posible iniciar sesión.');await ensureAdmin()});
-$('logoutBtn').onclick=async()=>{await sb.auth.signOut();showLogin()};
-sb.auth.onAuthStateChange(event=>{if(event==='SIGNED_OUT')showLogin()});
 
-document.querySelectorAll('.pill').forEach(b=>b.onclick=()=>{document.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));b.classList.add('active');engine=b.dataset.engine;$('engineHelp').textContent=help[engine];$('engineHelp').className='status '+(engine.startsWith('manual')?'warn':'ok')});
-
-$('syncBtn').onclick=async()=>{
- const base=$('moodleUrl').value.replace(/\/$/,'');$('registryStatus').textContent='Sincronizando...';$('registryStatus').className='status';
- try{const r=await fetch(base+'/local/h5pia/registry.php',{headers:{Accept:'application/json'}});if(!r.ok)throw new Error('HTTP '+r.status);registry=await r.json();if(!registry.libraries)throw new Error('Respuesta inválida');$('familyCount').textContent=registry.families;$('versionCount').textContent=registry.versions;$('registryStatus').textContent='Sincronizado con '+(registry.moodleRelease||'Moodle')+'.';$('registryStatus').className='status ok';fillLibraries()}catch(e){$('registryStatus').textContent='No se pudo sincronizar: '+e.message;$('registryStatus').className='status err'}
-};
-function fillLibraries(){const groups={};registry.libraries.filter(x=>x.runnable&&x.enabled).forEach(x=>(groups[x.machineName]??=[]).push(x));const s=$('library');s.innerHTML='';Object.keys(groups).sort().forEach(m=>{const latest=[...groups[m]].sort((a,b)=>b.majorVersion-a.majorVersion||b.minorVersion-a.minorVersion||b.patchVersion-a.patchVersion)[0];const o=document.createElement('option');o.value=m;o.textContent=(latest.title||m)+' · '+m;s.appendChild(o)});s.onchange=fillVersions;fillVersions()}
-function fillVersions(){if(!registry)return;const m=$('library').value;const xs=registry.libraries.filter(x=>x.machineName===m&&x.runnable).sort((a,b)=>b.majorVersion-a.majorVersion||b.minorVersion-a.minorVersion||b.patchVersion-a.patchVersion);const s=$('version');s.innerHTML='';xs.forEach((x,i)=>{const o=document.createElement('option');o.value=x.id;o.textContent=x.version+(i===0?' · recomendada':'');s.appendChild(o)})}
-function selectedLibrary(){if(!registry)return null;return registry.libraries.find(x=>Number(x.id)===Number($('version').value))}
-function makePrompt(){const lib=selectedLibrary();if(!lib)throw new Error('Primero sincroniza Moodle y selecciona una librería.');return `Actúa como diseñador instruccional experto en H5P.\nGenera SOLO JSON válido para los parámetros de la librería indicada.\n\nLIBRERÍA: ${lib.machineName} ${lib.majorVersion}.${lib.minorVersion}\nTÍTULO: ${$('title').value}\nPÚBLICO: ${$('audience').value}\nOBJETIVO: ${$('objective').value}\nNIVEL: ${$('level').value}\nIDIOMA: ${$('lang').value}\nCONTENIDO BASE:\n${$('source').value}\n\nREGLAS:\n- Mobile first.\n- Respeta exactamente la estructura semantics.\n- Retroalimentación breve y educativa.\n- No devuelvas markdown ni explicaciones.\n- Devuelve exclusivamente un objeto JSON.\n\nSEMANTICS:\n${JSON.stringify(lib.semantics||[],null,2)}`}
-$('copyPromptBtn').onclick=async()=>{try{await navigator.clipboard.writeText(makePrompt());$('resultBlock').hidden=false;$('validation').textContent='Prompt copiado.';$('validation').className='status ok'}catch(e){$('resultBlock').hidden=false;$('validation').textContent=e.message;$('validation').className='status err'}};
-$('generateBtn').onclick=async()=>{try{const prompt=makePrompt();$('resultBlock').hidden=false;if(engine.startsWith('manual')){await navigator.clipboard.writeText(prompt);$('validation').textContent='Prompt copiado. Úsalo en '+(engine==='manual-chatgpt'?'ChatGPT':'Gemini')+' y pega aquí el JSON.';$('validation').className='status warn';return}const model=engine==='gemini-pro'?'gemini-2.5-pro':'gemini-2.5-flash';$('validation').textContent='Generando con '+model+'...';$('validation').className='status';const {data:{session}}=await sb.auth.getSession();if(!session)throw new Error('Sesión expirada.');const {data,error}=await sb.functions.invoke('gemini-h5p',{body:{model,prompt}});if(error)throw error;if(!data?.ok)throw new Error(data?.error||'Respuesta inválida');$('result').value=typeof data.output==='string'?data.output:JSON.stringify(data.output,null,2);validateJson()}catch(e){$('validation').textContent=e.message||'No fue posible generar.';$('validation').className='status err'}};
-function validateJson(){try{const x=JSON.parse($('result').value);if(!x||Array.isArray(x))throw new Error('Se esperaba un objeto JSON.');$('validation').textContent='JSON válido. Listo para la capa de empaquetado H5P.';$('validation').className='status ok';return true}catch(e){$('validation').textContent='JSON inválido: '+e.message;$('validation').className='status err';return false}}
-$('validateBtn').onclick=validateJson;
-$('downloadBtn').onclick=()=>{if(!$('result').value.trim())return;const b=new Blob([$('result').value],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='h5p-borrador.json';a.click();URL.revokeObjectURL(a.href)};
-(async()=>{await ensureAdmin()})();
-</script>
+<script src="auth.js"></script>
+<script src="h5p-catalog.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

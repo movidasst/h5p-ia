@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - ".github/workflows/add-h5p-preview.yml"
+      - "scripts/apply-preview-patch.mjs"
 
 permissions:
   contents: write

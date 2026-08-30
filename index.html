@@ -5,99 +5,90 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#00205b">
   <meta name="robots" content="noindex,nofollow,noarchive">
-  <title>Generador H5P IA · La Movida SST</title>
-  <meta name="description" content="Herramienta privada para generar contenidos H5P compatibles con Moodle 5.2 usando Gemini y flujo manual de IA.">
+  <title>Crear H5P con IA · La Movida SST</title>
+  <meta name="description" content="Herramienta privada de La Movida SST para crear actividades H5P con IA y Moodle 5.2.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    :root{--navy:#00205b;--teal:#007b85;--green:#70ad47;--gold:#ffb600;--bg:#f5f8fb;--ink:#17324a;--muted:#64748b;--line:#dbe5ec;--danger:#b42318;--shadow:0 18px 50px rgba(0,32,91,.12)}
-    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;min-height:100vh;background:linear-gradient(145deg,#edf7f7,#f8fafc 48%,#eef3fa);color:var(--ink);font-family:Outfit,system-ui,sans-serif}button,input,select,textarea{font:inherit}button{cursor:pointer}[hidden]{display:none!important}
-    .flag{height:4px;background:linear-gradient(90deg,var(--gold) 0 34%,var(--navy) 34% 72%,var(--green) 72%)}
-    .login{min-height:100vh;display:grid;place-items:center;padding:24px}.login-card{width:min(100%,470px);background:rgba(255,255,255,.97);border:1px solid rgba(0,123,133,.15);border-radius:28px;overflow:hidden;box-shadow:var(--shadow)}.login-body{padding:30px}.brand{display:flex;align-items:center;gap:14px}.brand-mark{width:64px;height:64px;border-radius:20px;display:grid;place-items:center;background:linear-gradient(135deg,var(--navy),var(--teal));color:#fff;font-weight:900;font-size:1.15rem}.brand h1{margin:0;color:var(--navy);font-size:1.35rem}.brand p{margin:5px 0 0;color:var(--teal);font-size:.76rem;font-weight:850;text-transform:uppercase;letter-spacing:.06em}.copy{margin:22px 0;color:var(--muted);line-height:1.55}.field{display:grid;gap:7px}.field+.field{margin-top:13px}.field label{font-size:.75rem;font-weight:900;color:#4f6678;text-transform:uppercase;letter-spacing:.05em}.control{width:100%;min-height:48px;border:1px solid var(--line);border-radius:13px;padding:11px 13px;background:#f9fbfc;color:var(--ink);outline:0}.control:focus{background:#fff;border-color:var(--teal);box-shadow:0 0 0 4px rgba(0,123,133,.1)}textarea.control{min-height:120px;resize:vertical}.btn{border:0;border-radius:13px;min-height:46px;padding:10px 15px;font-weight:900}.btn:disabled{opacity:.65;cursor:wait}.btn-primary{color:#fff;background:linear-gradient(135deg,var(--teal),var(--navy));box-shadow:0 8px 20px rgba(0,123,133,.2)}.btn-secondary{color:var(--navy);background:#edf4f7;border:1px solid var(--line)}.btn-full{width:100%;margin-top:18px}.error{margin-top:13px;padding:11px 13px;border-radius:12px;background:#fff0f0;border:1px solid #ffd2d2;color:#9f2222;font-size:.82rem;font-weight:750}
-    .topbar{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.94);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}.topbar-inner{max-width:1240px;margin:auto;min-height:68px;padding:8px 16px;display:flex;align-items:center;gap:12px}.top-title{font-weight:900;color:var(--navy)}.top-sub{font-size:.72rem;color:var(--teal);font-weight:800}.user{margin-left:auto;display:flex;align-items:center;gap:8px}.chip{max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid var(--line);border-radius:999px;background:#fff;padding:8px 11px;font-size:.76rem;font-weight:800}.main{max-width:1240px;margin:auto;padding:20px 14px 80px}.hero{margin:5px 0 18px}.hero h2{margin:0;color:var(--navy);font-size:clamp(1.55rem,4vw,2.3rem)}.hero p{margin:7px 0 0;color:var(--muted)}.grid{display:grid;grid-template-columns:1fr;gap:15px}.card{background:#fff;border:1px solid var(--line);border-radius:20px;padding:17px;box-shadow:0 9px 28px rgba(0,32,91,.06)}.card h3{margin:0 0 14px;color:var(--navy);font-size:1.03rem}.row{display:grid;grid-template-columns:1fr;gap:11px}.pills{display:flex;gap:8px;flex-wrap:wrap}.pill{border:1px solid var(--line);background:#fff;color:#52697a;border-radius:999px;padding:9px 12px;font-weight:800}.pill.active{background:#e7f5f6;border-color:#76c6ca;color:#006871}.status{margin-top:11px;padding:10px 12px;border-radius:12px;background:#f1f5f9;color:#536779;font-size:.82rem}.status.ok{background:#edf9ef;color:#35753a}.status.warn{background:#fff8e5;color:#7a5900}.status.err{background:#fff0f0;color:#9f2222}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}.actions .btn{flex:1}.small{font-size:.8rem;color:var(--muted);line-height:1.5}.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:12px}.kpi{border:1px solid var(--line);border-radius:13px;padding:11px;background:#f9fbfc}.kpi strong{display:block;color:var(--navy);font-size:1.35rem}.code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
-    .mode-block{margin-bottom:13px}.mode-label{display:block;margin-bottom:8px;font-size:.75rem;font-weight:900;color:#4f6678;text-transform:uppercase;letter-spacing:.05em}.muted-note{font-size:.78rem;color:var(--muted);line-height:1.5;margin:7px 0 0}
-    .library-info{margin-top:12px;padding:14px 15px;border:1px solid #d9ebee;border-radius:16px;background:linear-gradient(180deg,#f8fcfc,#f4fafb)}.library-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px;color:var(--navy);font-weight:900}.library-badge{display:inline-flex;padding:4px 8px;border-radius:999px;background:#e7f5f6;color:#006871;font-size:.72rem;font-weight:900;border:1px solid #b8dee1}.library-desc{margin:0;line-height:1.55}.library-meta{display:grid;gap:8px;margin-top:11px}.library-meta div{padding:9px 10px;border-radius:11px;background:#fff;border:1px solid #e3edf1}.library-meta strong{display:block;color:var(--navy);font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}.recommend-box{margin:10px 0 13px;padding:12px;border-radius:14px;background:#fff8e5;border:1px solid #f4df9b}.recommend-result{margin-top:9px;font-size:.84rem;line-height:1.5}
-    .activity-chooser{margin:14px 0 16px;padding:14px;border:1px solid var(--line);border-radius:18px;background:#f8fbfc}.activity-toolbar{display:grid;gap:10px}.category-row{display:flex;gap:7px;overflow-x:auto;padding:2px 0 5px;scrollbar-width:thin}.category-btn{flex:0 0 auto;border:1px solid var(--line);background:#fff;color:#587082;border-radius:999px;padding:8px 11px;font-size:.76rem;font-weight:850}.category-btn.active{background:var(--navy);border-color:var(--navy);color:#fff}.activity-count{font-size:.76rem;color:var(--muted);font-weight:800}.activity-grid{display:grid;grid-template-columns:1fr;gap:10px;margin-top:11px}.activity-card{position:relative;text-align:left;border:1px solid #dbe6ec;background:#fff;border-radius:16px;padding:14px;transition:.16s;min-width:0}.activity-card:hover{border-color:#99cdd1;box-shadow:0 8px 22px rgba(0,32,91,.08);transform:translateY(-1px)}.activity-card.selected{border:2px solid var(--teal);background:#f0fbfb;box-shadow:0 0 0 3px rgba(0,123,133,.08)}.activity-card-head{display:flex;align-items:flex-start;gap:9px}.activity-icon{width:38px;height:38px;flex:0 0 38px;border-radius:12px;display:grid;place-items:center;background:#e9f6f5;color:var(--teal);font-size:1.05rem;font-weight:900}.activity-card h4{margin:0;color:var(--navy);font-size:.94rem;line-height:1.2}.activity-machine{margin-top:3px;color:#78909f;font-size:.66rem;font-weight:750;word-break:break-all}.activity-card p{margin:9px 0 0;color:#51697b;font-size:.78rem;line-height:1.43}.activity-card-foot{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:11px}.activity-tag{display:inline-flex;align-items:center;padding:4px 7px;border-radius:999px;background:#eef4f7;color:#536f81;font-size:.64rem;font-weight:850}.activity-tag.installed{background:#eaf7e5;color:#4c7c32}.activity-tag.mobile{background:#e7f5f6;color:#006871}.activity-select{margin-left:auto;border:0;border-radius:9px;padding:7px 9px;background:var(--teal);color:#fff;font-size:.7rem;font-weight:900}.activity-card.selected .activity-select{background:var(--navy)}.selected-activity{margin:11px 0 0;padding:11px 12px;border-radius:13px;background:#fff8e5;border:1px solid #f1dc98;color:#725300;font-size:.8rem;font-weight:750}.selected-activity.ok{background:#edf9ef;border-color:#cce9cd;color:#356f38}.activity-empty{padding:22px 10px;text-align:center;color:var(--muted);font-size:.82rem}
-    @media(min-width:620px){.activity-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @media(min-width:820px){.grid{grid-template-columns:360px 1fr}.row.two{grid-template-columns:1fr 1fr}.actions .btn{flex:0 0 auto}}
+    :root{--navy:#00205b;--teal:#007b85;--green:#70ad47;--gold:#ffb600;--ink:#17324a;--muted:#64748b;--line:#dbe5ec;--bg:#f5f8fb;--card:#fff;--danger:#a61b1b;--shadow:0 14px 38px rgba(0,32,91,.10)}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;min-height:100vh;background:linear-gradient(145deg,#edf7f7,#f8fafc 48%,#eef3fa);color:var(--ink);font-family:Outfit,system-ui,sans-serif}button,input,select,textarea{font:inherit}[hidden]{display:none!important}button{cursor:pointer}.flag{height:4px;background:linear-gradient(90deg,var(--gold) 0 34%,var(--navy) 34% 72%,var(--green) 72%)}
+    .login{min-height:100vh;display:grid;place-items:center;padding:22px}.login-card{width:min(100%,460px);background:#fff;border:1px solid rgba(0,123,133,.16);border-radius:26px;overflow:hidden;box-shadow:var(--shadow)}.login-body{padding:28px}.brand{display:flex;align-items:center;gap:13px}.brand-mark{width:60px;height:60px;border-radius:18px;display:grid;place-items:center;background:linear-gradient(135deg,var(--navy),var(--teal));color:#fff;font-weight:900}.brand h1{margin:0;color:var(--navy);font-size:1.3rem}.brand p{margin:4px 0 0;color:var(--teal);font-size:.75rem;font-weight:850;text-transform:uppercase;letter-spacing:.06em}.copy{color:var(--muted);line-height:1.55;margin:20px 0}.error{margin-top:12px;padding:11px 13px;border:1px solid #ffd0d0;border-radius:12px;background:#fff1f1;color:var(--danger);font-size:.84rem;font-weight:700}
+    .topbar{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.95);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}.topbar-inner{width:min(100%,980px);margin:auto;min-height:64px;padding:8px 14px;display:flex;align-items:center;gap:10px}.top-title{font-weight:900;color:var(--navy);line-height:1.05}.top-sub{font-size:.7rem;color:var(--teal);font-weight:800;margin-top:3px}.user{margin-left:auto;display:flex;align-items:center;gap:7px}.user-email{display:none;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.72rem;font-weight:750;color:#52697a}.logout{border:1px solid var(--line);background:#fff;color:var(--navy);border-radius:11px;padding:8px 10px;font-weight:850}
+    .main{width:min(100%,900px);margin:auto;padding:18px 14px 70px}.hero{padding:7px 2px 15px}.hero h2{margin:0;color:var(--navy);font-size:clamp(1.55rem,5vw,2.3rem);line-height:1.08}.hero p{margin:8px 0 0;color:var(--muted);line-height:1.5}.steps{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}.step-chip{padding:6px 9px;border:1px solid var(--line);border-radius:999px;background:#fff;color:#637889;font-size:.7rem;font-weight:800}.step-chip strong{color:var(--teal)}
+    .integration{display:flex;align-items:center;gap:8px;padding:10px 12px;margin-bottom:12px;border:1px solid var(--line);border-radius:14px;background:#fff;font-size:.78rem}.dot{width:9px;height:9px;border-radius:50%;background:#94a3b8;flex:0 0 9px}.dot.ok{background:var(--green)}.dot.err{background:#c83434}.integration-text{flex:1;color:#52697a;font-weight:750}.text-btn{border:0;background:transparent;color:var(--teal);font-weight:900;padding:5px 3px}
+    .panel{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:17px;box-shadow:0 8px 26px rgba(0,32,91,.055)}.panel+.panel{margin-top:12px}.panel-head{display:flex;align-items:flex-start;gap:11px;margin-bottom:14px}.number{width:30px;height:30px;flex:0 0 30px;border-radius:10px;display:grid;place-items:center;background:#e7f5f6;color:var(--teal);font-weight:900}.panel h3{margin:1px 0 2px;color:var(--navy);font-size:1.03rem}.panel-sub{margin:0;color:var(--muted);font-size:.79rem;line-height:1.4}
+    .field{display:grid;gap:7px}.field label{font-size:.76rem;font-weight:900;color:#4d6578}.control{width:100%;min-height:50px;border:1px solid var(--line);border-radius:13px;padding:11px 13px;background:#fafcfd;color:var(--ink);outline:0}.control:focus{background:#fff;border-color:var(--teal);box-shadow:0 0 0 4px rgba(0,123,133,.09)}textarea.control{min-height:116px;resize:vertical}.hint{margin:7px 0 0;color:var(--muted);font-size:.76rem;line-height:1.45}.selected-info{margin-top:11px;padding:12px 13px;border:1px solid #d6e9eb;border-radius:14px;background:#f4fbfb}.selected-info strong{display:block;color:var(--navy);margin-bottom:4px}.selected-info p{margin:0;color:#52697a;font-size:.8rem;line-height:1.45}.selected-meta{margin-top:7px;color:#52717c;font-size:.72rem;font-weight:800}
+    details.advanced{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}details.advanced summary{cursor:pointer;color:#587082;font-size:.78rem;font-weight:850;list-style:none}details.advanced summary::-webkit-details-marker{display:none}.advanced-grid{display:grid;gap:10px;margin-top:12px}.advanced textarea.control{min-height:90px}.advanced .field label{font-size:.72rem}
+    .primary{width:100%;border:0;border-radius:14px;min-height:52px;padding:11px 16px;background:linear-gradient(135deg,var(--teal),var(--navy));color:#fff;font-weight:900;box-shadow:0 8px 20px rgba(0,123,133,.18)}.primary:disabled{opacity:.55;cursor:not-allowed;box-shadow:none}.secondary{border:1px solid var(--line);border-radius:13px;min-height:46px;padding:9px 13px;background:#fff;color:var(--navy);font-weight:900}.action-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.action-row>*{flex:1}.status{margin-top:10px;padding:10px 12px;border-radius:12px;background:#f1f5f9;color:#52697a;font-size:.8rem;line-height:1.45}.status.ok{background:#edf9ef;color:#356f38}.status.warn{background:#fff8e5;color:#765700}.status.err{background:#fff0f0;color:#972222}
+    .proposal{margin-top:14px;border:1px solid #cfe4e6;border-radius:18px;overflow:hidden;background:#fff}.proposal-top{padding:14px 15px;background:linear-gradient(135deg,#f0fbfb,#f5f8ff)}.eyebrow{display:inline-block;padding:4px 8px;border-radius:999px;background:#e1f3f4;color:#006b74;font-size:.68rem;font-weight:900}.proposal h4{margin:9px 0 4px;color:var(--navy);font-size:1.08rem}.proposal-summary{margin:0;color:#4d6679;font-size:.83rem;line-height:1.5}.proposal-body{padding:14px 15px}.proposal-label{color:#667e8e;font-size:.68rem;font-weight:900;text-transform:uppercase;letter-spacing:.05em}.proposal-value{margin:3px 0 12px;color:var(--ink);font-size:.83rem;line-height:1.48}.proposal-list{margin:5px 0 0;padding-left:19px;color:#4d6679;font-size:.82rem;line-height:1.45}.proposal-list li+li{margin-top:5px}
+    .result{padding:15px;border:1px solid #cfe7cf;border-radius:18px;background:#f5fcf4}.result h4{margin:0;color:#326535;font-size:1.05rem}.result p{margin:6px 0 0;color:#4d6a52;font-size:.82rem;line-height:1.45}.final-actions{display:grid;gap:9px;margin-top:14px}.final-btn{width:100%;border-radius:14px;min-height:52px;padding:10px 13px;font-weight:900}.download{border:0;background:var(--navy);color:#fff}.publish{border:0;background:var(--green);color:#fff}.final-btn:disabled{opacity:.48;cursor:not-allowed}.tech{margin-top:12px}.tech summary{cursor:pointer;color:#718394;font-size:.74rem;font-weight:800}.tech textarea{margin-top:8px;min-height:150px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.72rem}
+    @media(min-width:620px){.panel{padding:21px}.advanced-grid{grid-template-columns:1fr 1fr}.advanced-grid .wide{grid-column:1/-1}.final-actions{grid-template-columns:1fr 1fr}.user-email{display:inline}.main{padding-top:24px}}
   </style>
 </head>
 <body>
 <div class="flag"></div>
 <section id="loginView" class="login">
   <div class="login-card"><div class="flag"></div><div class="login-body">
-    <div class="brand"><div class="brand-mark">H5P</div><div><h1>Generador H5P IA</h1><p>La Movida de SST</p></div></div>
-    <p class="copy">Acceso administrativo privado. Utiliza exactamente el mismo correo y contraseña con los que ingresas al Centro de Gestión.</p>
+    <div class="brand"><div class="brand-mark">H5P</div><div><h1>Crear H5P con IA</h1><p>La Movida de SST</p></div></div>
+    <p class="copy">Herramienta privada. Usa el mismo correo y contraseña del Centro de Gestión.</p>
     <form id="loginForm">
       <div class="field"><label for="loginEmail">Correo administrativo</label><input class="control" id="loginEmail" type="email" autocomplete="username" required></div>
-      <div class="field"><label for="loginPassword">Contraseña</label><input class="control" id="loginPassword" type="password" autocomplete="current-password" required></div>
-      <button class="btn btn-primary btn-full" type="submit">Ingresar</button>
+      <div class="field" style="margin-top:12px"><label for="loginPassword">Contraseña</label><input class="control" id="loginPassword" type="password" autocomplete="current-password" required></div>
+      <button class="primary" style="margin-top:17px" type="submit">Ingresar</button>
       <div id="loginError" class="error" hidden></div>
     </form>
   </div></div>
 </section>
 <section id="appView" hidden>
-  <header class="topbar"><div class="topbar-inner"><div><div class="top-title">Generador H5P IA</div><div class="top-sub">Moodle 5.2 · Gemini + modo manual</div></div><div class="user"><span id="adminEmail" class="chip"></span><button id="logoutBtn" class="btn btn-secondary">Salir</button></div></div></header>
+  <header class="topbar"><div class="topbar-inner"><div><div class="top-title">Crear H5P con IA</div><div class="top-sub">Academia Movida SST · Moodle 5.2</div></div><div class="user"><span id="adminEmail" class="user-email"></span><button id="logoutBtn" class="logout">Salir</button></div></div></header>
   <main class="main">
-    <div class="hero"><h2>Crear actividad H5P</h2><p>Elige exactamente el tipo de actividad que quieres o pide a Gemini una recomendación.</p></div>
-    <div class="grid">
-      <aside class="card">
-        <h3>1. Moodle</h3>
-        <div class="field"><label>Servidor</label><input id="moodleUrl" class="control" value="https://movidasst.org"></div>
-        <div class="actions"><button id="syncBtn" class="btn btn-secondary">Sincronizar H5P</button></div>
-        <div id="registryStatus" class="status">Pendiente de sincronización.</div>
-        <div class="kpis"><div class="kpi"><strong id="familyCount">—</strong><span class="small">familias</span></div><div class="kpi"><strong id="versionCount">—</strong><span class="small">versiones</span></div></div>
-        <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
-        <h3>2. Motor IA</h3>
-        <div class="pills" id="enginePills"><button class="pill active" data-engine="gemini-flash">Gemini Flash · Gratis</button><button class="pill" data-engine="gemini-pro">Gemini Pro</button><button class="pill" data-engine="manual-chatgpt">ChatGPT manual</button><button class="pill" data-engine="manual-gemini">Gemini manual</button></div>
-        <div id="engineHelp" class="status ok">Gemini Flash automático. Ideal para la mayoría de actividades.</div>
-        <p class="small">La API key está guardada en Supabase y nunca llega al navegador.</p>
-      </aside>
-      <section class="card">
-        <h3>3. Diseño de actividad</h3>
-        <div class="mode-block"><span class="mode-label">¿Quién decide el tipo de actividad?</span><div class="pills" id="creationModePills"><button class="pill active" data-creation-mode="choose">Yo elijo el H5P</button><button class="pill" data-creation-mode="recommend">Que Gemini me recomiende</button></div></div>
-        <div class="field"><label>¿Qué actividad quieres crear?</label><textarea id="activityRequest" class="control" placeholder="Ej. Quiero que el trabajador observe una imagen de un almacén e identifique 8 peligros de incendio."></textarea></div>
-        <p class="muted-note">Puedes indicar cantidad de preguntas, imagen, video, arrastrar elementos, decisiones, recorrido, juego o cualquier interacción.</p>
-        <div id="activityChooser" class="activity-chooser">
-          <div class="activity-toolbar">
-            <div class="field"><label for="activitySearch">Buscar actividad H5P</label><input id="activitySearch" class="control" type="search" placeholder="Ej. preguntas, imagen, video, arrastrar, escenario..."></div>
-            <div id="activityCategories" class="category-row" aria-label="Categorías de actividades">
-              <button class="category-btn active" data-category="all">Todas</button>
-              <button class="category-btn" data-category="assessment">Evaluación</button>
-              <button class="category-btn" data-category="visual">Imagen y visual</button>
-              <button class="category-btn" data-category="content">Contenido</button>
-              <button class="category-btn" data-category="multimedia">Multimedia</button>
-              <button class="category-btn" data-category="gamification">Juegos</button>
-              <button class="category-btn" data-category="scenario">Escenarios</button>
-              <button class="category-btn" data-category="specialized">Especializadas</button>
-            </div>
-            <div id="activityCount" class="activity-count">Cargando catálogo...</div>
-          </div>
-          <div id="activityGrid" class="activity-grid"></div>
-          <div id="activityEmpty" class="activity-empty" hidden>No hay actividades que coincidan con la búsqueda.</div>
-          <div id="selectedActivityStatus" class="selected-activity">Selecciona una tarjeta para elegir tu actividad H5P.</div>
+    <div class="hero"><h2>De una idea a una actividad H5P</h2><p>Elige el tipo, escribe el tema y revisa la propuesta antes de crearla.</p><div class="steps"><span class="step-chip"><strong>1</strong> Elige</span><span class="step-chip"><strong>2</strong> Tema</span><span class="step-chip"><strong>3</strong> Confirma</span><span class="step-chip"><strong>4</strong> Descarga o publica</span></div></div>
+    <div class="integration"><span id="moodleDot" class="dot"></span><span id="moodleStatus" class="integration-text">Conectando con Moodle…</span><button id="syncBtn" class="text-btn">Actualizar</button></div>
+    <section class="panel">
+      <div class="panel-head"><span class="number">1</span><div><h3>Elige el tipo de actividad</h3><p class="panel-sub">Solo verás actividades instaladas en tu Moodle.</p></div></div>
+      <div class="field"><label for="library">Tipo de actividad H5P</label><select id="library" class="control" disabled><option value="">Cargando actividades…</option></select></div>
+      <div id="libraryInfo" class="selected-info" hidden><strong id="libraryInfoTitle"></strong><p id="libraryInfoDescription"></p><div id="libraryInfoMeta" class="selected-meta"></div></div>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><span class="number">2</span><div><h3>¿Sobre qué tema?</h3><p class="panel-sub">Con una frase es suficiente. La IA construirá el objetivo y la estructura.</p></div></div>
+      <div class="field"><label for="topic">Tema o contenido</label><textarea id="topic" class="control" placeholder="Ej. Identificación de peligros de incendio en un almacén"></textarea></div>
+      <p class="hint">Puedes ser breve: “uso correcto del extintor”, “trabajo en altura”, “ruido ocupacional”, etc.</p>
+      <details class="advanced"><summary>＋ Opciones avanzadas (opcional)</summary><div class="advanced-grid">
+        <div class="field"><label for="audience">Público</label><input id="audience" class="control" value="Trabajadores"></div>
+        <div class="field"><label for="level">Nivel</label><select id="level" class="control"><option>Básico</option><option selected>Intermedio</option><option>Avanzado</option></select></div>
+        <div class="field"><label for="lang">Idioma</label><select id="lang" class="control"><option value="es" selected>Español</option><option value="en">English</option><option value="pt">Português</option><option value="fr">Français</option></select></div>
+        <div class="field"><label for="engine">Modelo IA</label><select id="engine" class="control"><option value="gemini-2.5-flash" selected>Gemini Flash</option><option value="gemini-2.5-pro">Gemini Pro</option></select></div>
+        <div class="field wide"><label for="instructions">Instrucciones o material de apoyo</label><textarea id="instructions" class="control" placeholder="Ej. Haz 8 preguntas, usa lenguaje sencillo, incluye retroalimentación, pega aquí una norma o contenido base…"></textarea></div>
+      </div></details>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><span class="number">3</span><div><h3>Revisa primero la propuesta</h3><p class="panel-sub">La IA te dirá exactamente qué pretende construir. Nada se crea hasta que tú lo confirmes.</p></div></div>
+      <button id="proposalBtn" class="primary">✨ Ver propuesta de la IA</button>
+      <div id="proposalStatus" class="status" hidden></div>
+      <div id="proposalPanel" class="proposal" hidden>
+        <div class="proposal-top"><span id="proposalType" class="eyebrow"></span><h4 id="proposalTitle"></h4><p id="proposalSummary" class="proposal-summary"></p></div>
+        <div class="proposal-body">
+          <div class="proposal-label">Objetivo que propone la IA</div><div id="proposalObjective" class="proposal-value"></div>
+          <div class="proposal-label">Así será la actividad</div><ul id="proposalStructure" class="proposal-list"></ul>
+          <div id="mediaNotice" class="status warn" hidden></div>
+          <div class="action-row"><button id="confirmBtn" class="primary">✓ Confirmar y crear</button><button id="anotherBtn" class="secondary">Proponer otra</button></div>
+          <div id="creationStatus" class="status" hidden></div>
         </div>
-
-        <div id="recommendBox" class="recommend-box" hidden><strong style="color:var(--navy)">Recomendación de H5P</strong><div class="actions"><button id="recommendBtn" class="btn btn-secondary">Recomendar actividad</button></div><div id="recommendResult" class="recommend-result">Describe primero la actividad que deseas crear.</div></div>
-        <div class="row two"><div class="field"><label>Tipo H5P</label><select id="library" class="control"><option>Sincroniza Moodle primero</option></select></div><div class="field"><label>Versión</label><select id="version" class="control"><option>—</option></select></div></div>
-        <div id="libraryInfo" class="library-info" hidden><div class="library-title"><span id="libraryTitleText">Actividad H5P</span><span id="libraryMachineBadge" class="library-badge">—</span></div><p id="libraryDescription" class="library-desc"></p><div class="library-meta"><div><strong>Ideal para</strong><span id="libraryIdeal"></span></div><div><strong>¿Qué hace el participante?</strong><span id="libraryParticipant"></span></div><div><strong>Uso en móvil</strong><span id="libraryMobile"></span></div></div></div>
-        <div style="height:11px"></div>
-        <div class="row two"><div class="field"><label>Título</label><input id="title" class="control" placeholder="Ej. Reto: Seguridad contra incendios"></div><div class="field"><label>Público</label><input id="audience" class="control" value="Trabajadores"></div></div>
-        <div style="height:11px"></div><div class="field"><label>Objetivo de aprendizaje</label><textarea id="objective" class="control" placeholder="¿Qué debe lograr el participante?"></textarea></div>
-        <div style="height:11px"></div><div class="field"><label>Contenido o contexto</label><textarea id="source" class="control" placeholder="Pega aquí la información base, caso, normativa o instrucciones."></textarea></div>
-        <div style="height:11px"></div><div class="row two"><div class="field"><label>Nivel</label><select id="level" class="control"><option>Básico</option><option selected>Intermedio</option><option>Avanzado</option></select></div><div class="field"><label>Idioma</label><select id="lang" class="control"><option value="es" selected>Español</option><option value="en">English</option><option value="pt">Português</option><option value="fr">Français</option></select></div></div>
-        <div class="status ok">✓ Mobile first · ✓ Retroalimentación educativa · ✓ JSON estructurado</div>
-        <div class="actions"><button id="generateBtn" class="btn btn-primary">Generar</button><button id="copyPromptBtn" class="btn btn-secondary">Copiar prompt</button></div>
-        <div id="resultBlock" hidden style="margin-top:18px"><h3>4. Resultado</h3><div class="field"><label>JSON H5P</label><textarea id="result" class="control code" style="min-height:270px"></textarea></div><div class="actions"><button id="validateBtn" class="btn btn-secondary">Validar JSON</button><button id="downloadBtn" class="btn btn-secondary">Descargar borrador</button></div><div id="validation" class="status">Pendiente.</div></div>
-      </section>
-    </div>
+      </div>
+    </section>
+    <section id="resultPanel" class="panel" hidden>
+      <div class="panel-head"><span class="number">4</span><div><h3>Actividad creada</h3><p class="panel-sub">Ahora decide qué quieres hacer con ella.</p></div></div>
+      <div class="result"><h4 id="resultTitle">✓ Contenido H5P generado</h4><p id="resultSummary"></p></div>
+      <div class="final-actions"><button id="downloadH5pBtn" class="final-btn download">⬇ Descargar .H5P</button><button id="publishBtn" class="final-btn publish">↗ Enviar a Moodle</button></div>
+      <div id="finalStatus" class="status" hidden></div>
+      <details class="tech"><summary>Ver información técnica</summary><textarea id="resultJson" class="control" readonly></textarea><button id="downloadJsonBtn" class="secondary" style="margin-top:8px">Descargar JSON</button></details>
+    </section>
   </main>
 </section>
 <script src="./auth.js"></script>
 <script src="./catalog-h5p.js"></script>
 <script src="./app.js"></script>
-<script src="./activity-gallery.js"></script>
 </body>
 </html>

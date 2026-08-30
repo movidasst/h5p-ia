@@ -59,6 +59,14 @@ function friendlyMeta(lib) {
   };
 }
 function shortMachine(machineName) { return String(machineName || '').replace(/^H5P\./,''); }
+function friendlyName(lib) {
+  return window.H5P_NAMES_ES?.[lib?.machineName] || lib?.title || lib?.machineName || 'Actividad H5P';
+}
+function optionLabel(lib) {
+  const es = friendlyName(lib);
+  const original = lib?.title || lib?.machineName || '';
+  return original && original !== es ? `${es} (${original})` : es;
+}
 
 async function syncRegistry() {
   $('moodleDot').className = 'dot';
@@ -103,24 +111,24 @@ function populateLibrarySelect() {
     const group = document.createElement('optgroup');
     group.label = label;
     const matches = libs.filter(lib => tokens.some(token => shortMachine(lib.machineName).toLowerCase() === token.toLowerCase()));
-    matches.sort((a,b)=>(a.title||a.machineName).localeCompare(b.title||b.machineName,'es'));
+    matches.sort((a,b)=>friendlyName(a).localeCompare(friendlyName(b),'es'));
     for (const lib of matches) {
       const option = document.createElement('option');
       option.value = lib.machineName;
-      option.textContent = lib.title || lib.machineName;
+      option.textContent = optionLabel(lib);
       group.appendChild(option);
       used.add(lib.machineName);
     }
     if (group.children.length) select.appendChild(group);
   }
-  const remaining = libs.filter(lib => !used.has(lib.machineName)).sort((a,b)=>(a.title||a.machineName).localeCompare(b.title||b.machineName,'es'));
+  const remaining = libs.filter(lib => !used.has(lib.machineName)).sort((a,b)=>friendlyName(a).localeCompare(friendlyName(b),'es'));
   if (remaining.length) {
     const group = document.createElement('optgroup');
     group.label = 'Otras actividades instaladas';
     for (const lib of remaining) {
       const option = document.createElement('option');
       option.value = lib.machineName;
-      option.textContent = lib.title || lib.machineName;
+      option.textContent = optionLabel(lib);
       group.appendChild(option);
     }
     select.appendChild(group);
@@ -151,9 +159,9 @@ function onLibraryChange() {
   }
   const meta = friendlyMeta(selectedLibrary);
   $('libraryInfo').hidden = false;
-  $('libraryInfoTitle').textContent = selectedLibrary.title || selectedLibrary.machineName;
-  $('libraryInfoDescription').textContent = meta.description;
-  $('libraryInfoMeta').textContent = `Ideal para: ${meta.ideal} · Móvil: ${meta.mobile}`;
+  $('libraryInfoTitle').textContent = friendlyName(selectedLibrary);
+  $('libraryInfoDescription').textContent = `Qué hace: ${meta.description}`;
+  $('libraryInfoMeta').textContent = `Ideal para: ${meta.ideal} · El participante: ${meta.participant} · Nombre H5P: ${selectedLibrary.title || selectedLibrary.machineName}`;
 }
 
 function resetAfterInputChange() {
@@ -169,7 +177,7 @@ function resetAfterInputChange() {
 function uniqueInstalledForPrompt() {
   return latestLibraries().map(lib => {
     const meta = friendlyMeta(lib);
-    return {machineName:lib.machineName,title:lib.title,description:meta.description,ideal:meta.ideal,mobile:meta.mobile};
+    return {machineName:lib.machineName,title:friendlyName(lib),technicalTitle:lib.title,description:meta.description,ideal:meta.ideal,mobile:meta.mobile};
   });
 }
 
@@ -252,7 +260,7 @@ async function createProposal() {
 function renderProposal() {
   if (!proposal || !selectedLibrary) return;
   $('proposalPanel').hidden = false;
-  $('proposalType').textContent = selectedLibrary.title || proposal.machineName;
+  $('proposalType').textContent = friendlyName(selectedLibrary);
   $('proposalTitle').textContent = proposal.title;
   $('proposalSummary').textContent = proposal.summary;
   $('proposalObjective').textContent = proposal.objective || 'La IA lo definirá durante la creación.';

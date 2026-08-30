@@ -1,0 +1,392 @@
+from pathlib import Path
+import re
+
+p=Path('app.js')
+s=p.read_text(encoding='utf-8')
+
+def replace_once(old,new,label):
+    global s
+    if old not in s:
+        raise SystemExit(f'Missing block: {label}')
+    s=s.replace(old,new,1)
+
+def replace_between(start_pattern,end_pattern,new_block,label):
+    global s
+    pattern=re.compile(start_pattern+r'.*?(?='+end_pattern+r')',re.S)
+    s2,n=pattern.subn(new_block,s,count=1)
+    if n!=1:
+        raise SystemExit(f'Could not replace {label}: {n}')
+    s=s2
+
+replace_once(
+"let selectedLibrary = null;\n",
+"let selectedLibrary = null;\nlet assetUploads = new Map();\nlet bridgeSupportsAssets = false;\nconst MAX_ASSETS = 8;\nconst MAX_SOURCE_FILE_BYTES = 12 * 1024 * 1024;\n",
+'globals')
+
+anchor="""function optionLabel(lib) {
+  const es = friendlyName(lib);
+  const original = lib?.title || lib?.machineName || '';
+  return original && original !== es ? `${es} (${original})` : es;
+}
+"""
+helpers=r'''
+function ensureAssetStyles() {
+  if (document.getElementById('h5piaAssetStyles')) return;
+  const style=document.createElement('style');
+  style.id='h5piaAssetStyles';
+  style.textContent=`
+    .asset-panel{margin-top:14px;padding:14px;border:1px solid #d6e9eb;border-radius:16px;background:#f8fcfc}
+    .asset-panel h5{margin:0;color:#00205b;font-size:.95rem}.asset-help{margin:5px 0 12px;color:#5b7181;font-size:.78rem;line-height:1.45}
+    .asset-card{display:grid;grid-template-columns:1fr;gap:10px;padding:12px;background:#fff;border:1px solid #dbe5ec;border-radius:14px}.asset-card+.asset-card{margin-top:10px}
+    .asset-card strong{color:#00205b}.asset-desc{margin:4px 0 0;color:#5b7181;font-size:.78rem;line-height:1.45}.asset-required{color:#9a3412;font-size:.7rem;font-weight:900}
+    .asset-input{width:100%;padding:9px;border:1px dashed #9bc9cd;border-radius:11px;background:#f7fbfc;color:#17324a}
+    .asset-preview{width:100%;max-height:240px;object-fit:contain;border-radius:10px;border:1px solid #e2e8f0;background:#f8fafc}
+    .asset-state{font-size:.75rem;font-weight:850;color:#64748b}.asset-state.ok{color:#3d7f3f}.asset-state.err{color:#a61b1b}
+    .asset-summary{margin-top:10px;padding:9px 11px;border-radius:11px;background:#fff8e5;color:#765700;font-size:.78rem;font-weight:800}
+    @media(min-width:680px){.asset-card.has-preview{grid-template-columns:minmax(0,1fr) 180px}.asset-preview{height:140px}}
+  `;
+  document.head.appendChild(style);
+}
+function removeAssetPanel() {
+  document.getElementById('assetUploadPanel')?.remove();
+}
+function clearAssetUploads() {
+  assetUploads.clear();
+  removeAssetPanel();
+}
+function normalizeAssetSpecs(raw, rec={}) {
+  const list=[];
+  const seen=new Set();
+  if (Array.isArray(raw)) {
+    for (const item of raw.slice(0,MAX_ASSETS)) {
+      if (!item || typeof item!=='object') continue;
+      let id=String(item.id || `asset_${list.length+1}`).toLowerCase().replace(/[^a-z0-9_-]+/g,'_').replace(/^_+|_+$/g,'');
+      if (!id) id=`asset_${list.length+1}`;
+      while (seen.has(id)) id += '_2';
+      seen.add(id);
+      const type=['image','audio','video','file'].includes(item.type) ? item.type : 'image';
+      const defaultAccept=type==='image' ? 'image/jpeg,image/png,image/webp' : type==='audio' ? 'audio/mpeg,audio/wav,audio/ogg' : type==='video' ? 'video/mp4,video/webm' : '*/*';
+      list.push({
+        id,
+        type,
+        label:String(item.label || `${type==='image'?'Imagen':'Recurso'} ${list.length+1}`),
+        description:String(item.description || item.purpose || 'Sube el recurso solicitado para completar la actividad.'),
+        required:item.required!==false,
+        accept:String(item.accept || defaultAccept)
+      });
+    }
+  }
+  if (!list.length && rec?.needsMedia) {
+    const note=String(rec.mediaNote || 'La actividad necesita un recurso multimedia.');
+    const match=note.match(/\b([1-8])\s+im[aá]gen/i);
+    const count=match ? Number(match[1]) : 1;
+    for (let i=1;i<=count;i++) list.push({id:`image_${i}`,type:'image',label:`Imagen ${i}`,description:note,required:true,accept:'image/jpeg,image/png,image/webp'});
+  }
+  return list;
+}
+function requiredAssetsComplete() {
+  const specs=proposal?.assets || [];
+  return specs.filter(x=>x.required).every(x=>assetUploads.has(x.id));
+}
+function mimeExtension(mime) {
+  return ({'image/jpeg':'jpg','image/png':'png','image/webp':'webp','audio/mpeg':'mp3','audio/wav':'wav','audio/ogg':'ogg','video/mp4':'mp4','video/webm':'webm'})[mime] || 'bin';
+}
+function assetPlaceholder(id) { return `h5pia://${id}`; }
+function assetPackagePath(asset) {
+  const folder=asset.type==='image'?'images':asset.type==='audio'?'audios':asset.type==='video'?'videos':'files';
+  return `${folder}/${asset.id}.${mimeExtension(asset.mimeType)}`;
+}
+function blobToBase64(blob) {
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror=()=>reject(new Error('No se pudo leer el archivo.'));
+    reader.readAsDataURL(blob);
+  });
+}
+function loadImage(url) {
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>resolve(img);
+    img.onerror=()=>reject(new Error('La imagen no pudo abrirse.'));
+    img.src=url;
+  });
+}
+async function prepareImage(spec,file) {
+  if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) throw new Error('Usa una imagen JPG, PNG o WEBP.');
+  const source=URL.createObjectURL(file);
+  try {
+    const img=await loadImage(source);
+    const max=1600;
+    const scale=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));
+    const width=Math.max(1,Math.round(img.naturalWidth*scale));
+    const height=Math.max(1,Math.round(img.naturalHeight*scale));
+    const canvas=document.createElement('canvas'); canvas.width=width; canvas.height=height;
+    const ctx=canvas.getContext('2d'); ctx.drawImage(img,0,0,width,height);
+    const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('No se pudo optimizar la imagen.')),'image/jpeg',0.86));
+    const base64=await blobToBase64(blob);
+    return {id:spec.id,type:'image',label:spec.label,description:spec.description,originalName:file.name,mimeType:'image/jpeg',base64,width,height,size:blob.size,preview:`data:image/jpeg;base64,${base64}`};
+  } finally { URL.revokeObjectURL(source); }
+}
+async function prepareGenericAsset(spec,file) {
+  const base64=await blobToBase64(file);
+  return {id:spec.id,type:spec.type,label:spec.label,description:spec.description,originalName:file.name,mimeType:file.type || 'application/octet-stream',base64,size:file.size,preview:''};
+}
+async function handleAssetFile(spec,file) {
+  if (!file) return;
+  if (file.size>MAX_SOURCE_FILE_BYTES) throw new Error('El archivo supera 12 MB. Usa una versión más liviana.');
+  const asset=spec.type==='image' ? await prepareImage(spec,file) : await prepareGenericAsset(spec,file);
+  if (asset.base64.length>9_000_000) throw new Error('El archivo sigue siendo demasiado grande después de procesarlo.');
+  assetUploads.set(spec.id,asset);
+  renderAssetPanel();
+}
+function renderAssetPanel() {
+  removeAssetPanel();
+  const specs=proposal?.assets || [];
+  if (!specs.length) { updateConfirmAvailability(); return; }
+  ensureAssetStyles();
+  const body=$('proposalPanel').querySelector('.proposal-body');
+  const actionRow=body?.querySelector('.action-row');
+  if (!body || !actionRow) return;
+  const panel=document.createElement('div'); panel.id='assetUploadPanel'; panel.className='asset-panel';
+  const title=document.createElement('h5'); title.textContent='📎 Recursos necesarios antes de crear'; panel.appendChild(title);
+  const help=document.createElement('p'); help.className='asset-help'; help.textContent='La IA indicó exactamente qué necesita. Sube cada archivo; podrás revisarlo antes de continuar.'; panel.appendChild(help);
+  for (const spec of specs) {
+    const uploaded=assetUploads.get(spec.id);
+    const card=document.createElement('div'); card.className='asset-card'+(uploaded?.preview?' has-preview':'');
+    const info=document.createElement('div');
+    const strong=document.createElement('strong'); strong.textContent=spec.label; info.appendChild(strong);
+    if (spec.required) { const r=document.createElement('span'); r.className='asset-required'; r.textContent=' · OBLIGATORIO'; info.appendChild(r); }
+    const desc=document.createElement('p'); desc.className='asset-desc'; desc.textContent=spec.description; info.appendChild(desc);
+    const input=document.createElement('input'); input.type='file'; input.accept=spec.accept; input.className='asset-input'; input.setAttribute('aria-label',`Subir ${spec.label}`);
+    input.addEventListener('change',async()=>{
+      const file=input.files?.[0];
+      const state=info.querySelector('.asset-state');
+      if (state) { state.textContent='Procesando…'; state.className='asset-state'; }
+      try { await handleAssetFile(spec,file); }
+      catch(error) { if (state) { state.textContent=error.message; state.className='asset-state err'; } }
+    });
+    info.appendChild(input);
+    const state=document.createElement('div'); state.className='asset-state'+(uploaded?' ok':''); state.textContent=uploaded ? `✓ Cargada · ${uploaded.width?uploaded.width+'×'+uploaded.height+' · ':''}${Math.max(1,Math.round(uploaded.size/1024))} KB` : 'Pendiente de subir'; info.appendChild(state);
+    card.appendChild(info);
+    if (uploaded?.preview) { const img=document.createElement('img'); img.src=uploaded.preview; img.alt=`Vista previa: ${spec.label}`; img.className='asset-preview'; card.appendChild(img); }
+    panel.appendChild(card);
+  }
+  const done=specs.filter(x=>!x.required || assetUploads.has(x.id)).length;
+  const summary=document.createElement('div'); summary.className='asset-summary'; summary.textContent=requiredAssetsComplete() ? `✓ Recursos listos (${done}/${specs.length}). Ya puedes confirmar y crear.` : `Faltan recursos obligatorios. Cargados ${done}/${specs.length}.`; panel.appendChild(summary);
+  body.insertBefore(panel,actionRow);
+  updateConfirmAvailability();
+}
+function updateConfirmAvailability() {
+  const button=$('confirmBtn');
+  if (!button || !proposal) return;
+  const specs=proposal.assets || [];
+  const complete=requiredAssetsComplete();
+  button.disabled=specs.length>0 && !complete;
+  button.textContent=specs.length>0 && !complete ? 'Completa los recursos para continuar' : '✓ Confirmar y crear';
+}
+function geminiAssets() {
+  return [...assetUploads.values()].map(a=>({id:a.id,label:a.label,description:a.description,mimeType:a.mimeType,data:a.base64}));
+}
+function bridgeAssets() {
+  return [...assetUploads.values()].map(a=>({id:a.id,type:a.type,label:a.label,mimeType:a.mimeType,dataBase64:a.base64,originalName:a.originalName,path:assetPackagePath(a),placeholder:assetPlaceholder(a.id)}));
+}
+function assetManifest() {
+  return (proposal?.assets || []).map(spec=>{
+    const a=assetUploads.get(spec.id);
+    return {id:spec.id,label:spec.label,description:spec.description,placeholder:assetPlaceholder(spec.id),mimeType:a?.mimeType || null,packagePath:a?assetPackagePath(a):null};
+  });
+}
+'''
+replace_once(anchor,anchor+helpers,'helper insertion')
+
+replace_between(r"function resetAfterInputChange\(\) \{",r"function uniqueInstalledForPrompt\(\)",r'''function resetAfterInputChange() {
+  proposal = null;
+  generatedParams = null;
+  clearAssetUploads();
+  $('proposalPanel').hidden = true;
+  $('resultPanel').hidden = true;
+  showStatus($('proposalStatus'), '');
+  showStatus($('creationStatus'), '');
+  showStatus($('finalStatus'), '');
+}
+
+''','resetAfterInputChange')
+
+replace_between(r"function proposalPrompt\(\) \{",r"async function callGemini\(",r'''function proposalPrompt() {
+  const topic = $('topic').value.trim();
+  const choice = $('library').value;
+  if (!choice) throw new Error('Primero elige un tipo de actividad.');
+  if (!topic) throw new Error('Escribe el tema de la actividad.');
+  const audience = $('audience').value.trim() || 'Trabajadores';
+  const level = $('level').value;
+  const lang = $('lang').value;
+  const instructions = $('instructions').value.trim();
+  const selectionRule = choice === '__AUTO__'
+    ? `Elige la mejor SOLO entre estas librerías instaladas:\n${JSON.stringify(uniqueInstalledForPrompt())}`
+    : `Debes utilizar exactamente esta librería: ${choice}. No la cambies.`;
+  return `Actúa como diseñador instruccional experto en H5P, microlearning y experiencia móvil.\n\nTEMA: ${topic}\nPÚBLICO: ${audience}\nNIVEL: ${level}\nIDIOMA: ${lang}\nINSTRUCCIONES ADICIONALES: ${instructions || 'Ninguna'}\n\n${selectionRule}\n\nTodavía NO generes el contenido H5P. Primero presenta una propuesta concreta para que el usuario la apruebe.\nDevuelve SOLO JSON válido con esta estructura exacta:\n{\n  "machineName":"H5P.X",\n  "title":"título breve",\n  "objective":"objetivo de aprendizaje claro",\n  "summary":"explica en una o dos frases qué actividad vas a construir",\n  "structure":["elemento 1","elemento 2","elemento 3"],\n  "assets":[\n    {\n      "id":"image_1",\n      "type":"image",\n      "label":"Imagen 1 — nombre claro",\n      "description":"Explica exactamente qué imagen debe subir el usuario y qué debe verse",\n      "required":true,\n      "accept":"image/jpeg,image/png,image/webp"\n    }\n  ],\n  "needsMedia":true,\n  "mediaNote":"resumen breve de los recursos solicitados"\n}\n\nREGLAS DE RECURSOS:\n- Si no necesita archivos, devuelve assets:[] y needsMedia:false.\n- Si necesita 2 imágenes, crea DOS objetos distintos, por ejemplo image_1 e image_2; nunca lo resumas en un solo texto.\n- Cada recurso debe tener una descripción específica para que el usuario sepa exactamente qué subir.\n- Para comparaciones antes/después o escenas diferentes, describe por separado qué debe verse en cada imagen.\n- Máximo ${MAX_ASSETS} recursos.\n\nLa estructura debe ser concreta: número de preguntas, decisiones, hotspots, tarjetas, secciones, etc. No uses markdown.`;
+}
+
+''','proposalPrompt')
+
+replace_between(r"async function callGemini\(.*?\) \{",r"async function createProposal\(",r'''async function callGemini(prompt, assets=[]) {
+  if (!sb) throw new Error('La sesión de IA todavía no está disponible. Recarga la página.');
+  const model = $('engine').value || 'gemini-2.5-flash';
+  const {data, error} = await sb.functions.invoke('gemini-h5p', {body:{model,prompt,assets}});
+  if (error) {
+    let detail='';
+    try {
+      if (error.context?.clone) {
+        const payload=await error.context.clone().json();
+        detail=payload?.message || payload?.details?.error?.message || payload?.error || '';
+      }
+    } catch (_) {}
+    throw new Error(detail || error.message || 'No se pudo consultar la IA.');
+  }
+  if (!data?.ok) throw new Error(data?.message || data?.error || 'La IA devolvió una respuesta inválida.');
+  const output = typeof data.output === 'string' ? data.output : JSON.stringify(data.output);
+  try { return JSON.parse(output); }
+  catch (_) { throw new Error('La IA no devolvió JSON válido. Prueba otra vez.'); }
+}
+
+''','callGemini')
+
+replace_between(r"async function createProposal\(\) \{",r"function renderProposal\(",r'''async function createProposal() {
+  const button = $('proposalBtn');
+  showStatus($('proposalStatus'), '');
+  $('proposalPanel').hidden = true;
+  $('resultPanel').hidden = true;
+  clearAssetUploads();
+  try {
+    const prompt = proposalPrompt();
+    setBusy(button, true, 'Pensando una propuesta…');
+    showStatus($('proposalStatus'), 'La IA está diseñando una propuesta. Todavía no se está creando el H5P.');
+    const rec = await callGemini(prompt);
+    if (!rec || typeof rec !== 'object') throw new Error('Propuesta inválida.');
+    const recommended = findLatest(rec.machineName);
+    if (!recommended) throw new Error('La IA propuso una actividad que no está instalada en Moodle.');
+    if ($('library').value !== '__AUTO__' && rec.machineName !== $('library').value) {
+      throw new Error('La IA cambió el tipo de actividad solicitado. Vuelve a intentar.');
+    }
+    const normalizedAssets=normalizeAssetSpecs(rec.assets,rec);
+    const makeProposal=()=>({
+      machineName: rec.machineName,
+      title: String(rec.title || recommended.title || 'Actividad H5P'),
+      objective: String(rec.objective || ''),
+      summary: String(rec.summary || ''),
+      structure: Array.isArray(rec.structure) ? rec.structure.map(String).slice(0,8) : [],
+      assets: normalizedAssets,
+      needsMedia: normalizedAssets.length>0,
+      mediaNote: String(rec.mediaNote || '')
+    });
+    selectedLibrary = recommended;
+    proposal = makeProposal();
+    if ($('library').value === '__AUTO__') {
+      $('library').value = proposal.machineName;
+      onLibraryChange();
+      proposal = makeProposal();
+      selectedLibrary = recommended;
+    }
+    renderProposal();
+    showStatus($('proposalStatus'), proposal.assets.length ? 'Propuesta lista. Ahora sube los recursos solicitados y luego confirma.' : 'Propuesta lista. Revísala y confirma solo si te convence.', 'ok');
+    $('proposalPanel').scrollIntoView({behavior:'smooth', block:'nearest'});
+  } catch (error) {
+    showStatus($('proposalStatus'), error.message || 'No se pudo crear la propuesta.', 'err');
+  } finally {
+    setBusy(button, false);
+  }
+}
+
+''','createProposal')
+
+replace_between(r"function renderProposal\(\) \{",r"function generationPrompt\(",r'''function renderProposal() {
+  if (!proposal || !selectedLibrary) return;
+  $('proposalPanel').hidden = false;
+  $('proposalType').textContent = friendlyName(selectedLibrary);
+  $('proposalTitle').textContent = proposal.title;
+  $('proposalSummary').textContent = proposal.summary;
+  $('proposalObjective').textContent = proposal.objective || 'La IA lo definirá durante la creación.';
+  $('proposalStructure').innerHTML = '';
+  for (const item of proposal.structure) {
+    const li = document.createElement('li');
+    li.textContent = item;
+    $('proposalStructure').appendChild(li);
+  }
+  $('mediaNotice').hidden = !proposal.assets.length;
+  $('mediaNotice').textContent = proposal.assets.length ? `Esta actividad necesita ${proposal.assets.length} recurso${proposal.assets.length===1?'':'s'}. Súbelos debajo para continuar.` : '';
+  renderAssetPanel();
+  updateConfirmAvailability();
+}
+
+''','renderProposal')
+
+replace_between(r"function generationPrompt\(\) \{",r"async function confirmAndCreate\(",r'''function generationPrompt() {
+  if (!proposal || !selectedLibrary) throw new Error('Primero confirma una propuesta.');
+  const manifest=assetManifest();
+  return `Actúa como generador técnico de contenido H5P y analista multimodal.\nGenera SOLO el objeto JSON de parámetros compatible con la librería indicada.\n\nLIBRERÍA: ${selectedLibrary.machineName} ${selectedLibrary.majorVersion}.${selectedLibrary.minorVersion}\nTEMA: ${$('topic').value.trim()}\nTÍTULO APROBADO: ${proposal.title}\nOBJETIVO APROBADO: ${proposal.objective}\nPROPUESTA APROBADA: ${proposal.summary}\nESTRUCTURA APROBADA: ${JSON.stringify(proposal.structure)}\nPÚBLICO: ${$('audience').value.trim() || 'Trabajadores'}\nNIVEL: ${$('level').value}\nIDIOMA: ${$('lang').value}\nMATERIAL/INSTRUCCIONES: ${$('instructions').value.trim() || 'Ninguno'}\n\nRECURSOS CARGADOS:\n${JSON.stringify(manifest,null,2)}\n\nREGLAS:\n- Respeta exactamente semantics.\n- Mobile first.\n- Cumple la propuesta aprobada.\n- Incluye retroalimentación educativa cuando la librería lo permita.\n- Las imágenes/archivos adjuntos forman parte real de la actividad: analízalos antes de generar.\n- Si debes referenciar un archivo dentro de los parámetros H5P, usa EXACTAMENTE el placeholder indicado en RECURSOS CARGADOS (por ejemplo h5pia://image_1). No inventes URLs ni otras rutas.\n- Si la actividad consiste en identificar elementos visuales, usa lo que realmente observas en la imagen y genera coordenadas/zonas coherentes con esa imagen cuando semantics lo requiera.\n- No devuelvas markdown ni texto adicional.\n\nSEMANTICS:\n${JSON.stringify(selectedLibrary.semantics || [], null, 2)}`;
+}
+
+''','generationPrompt')
+
+replace_between(r"async function confirmAndCreate\(\) \{",r"async function checkBridge\(",r'''async function confirmAndCreate() {
+  const button = $('confirmBtn');
+  showStatus($('creationStatus'), '');
+  try {
+    if (!requiredAssetsComplete()) throw new Error('Faltan recursos obligatorios. Sube todos los archivos indicados antes de continuar.');
+    setBusy(button, true, proposal?.assets?.length ? 'Analizando recursos y creando…' : 'Creando H5P…');
+    showStatus($('creationStatus'), proposal?.assets?.length ? 'La IA está analizando los archivos que subiste y construyendo la actividad…' : 'Creando el contenido con la estructura que aprobaste…');
+    const params = await callGemini(generationPrompt(), geminiAssets());
+    if (params?._h5pia_error) throw new Error(params.message || 'No se pudo completar esta actividad.');
+    if (!params || typeof params !== 'object' || Array.isArray(params)) throw new Error('La IA no generó un objeto H5P válido.');
+    generatedParams = params;
+    $('resultJson').value = JSON.stringify(generatedParams, null, 2);
+    $('resultPanel').hidden = false;
+    $('resultTitle').textContent = '✓ ' + proposal.title;
+    $('resultSummary').textContent = `${friendlyName(selectedLibrary)} · contenido generado${proposal.assets.length?` con ${proposal.assets.length} recurso${proposal.assets.length===1?'':'s'}`:''} y listo para validación de Moodle.`;
+    showStatus($('creationStatus'), 'Actividad generada. El siguiente paso valida el paquete con Moodle.', 'ok');
+    updateFinalButtons();
+    $('resultPanel').scrollIntoView({behavior:'smooth', block:'start'});
+  } catch (error) {
+    showStatus($('creationStatus'), error.message || 'No se pudo crear la actividad.', 'err');
+  } finally {
+    setBusy(button, false);
+  }
+}
+
+''','confirmAndCreate')
+
+replace_once(
+"""    bridgeReady = Boolean(data?.ok && data?.canPackage && data?.canPublish);
+""",
+"""    bridgeReady = Boolean(data?.ok && data?.canPackage && data?.canPublish);
+    bridgeSupportsAssets = Boolean(data?.canAssets);
+""",
+'bridge asset capability')
+
+replace_between(r"function updateFinalButtons\(\) \{",r"function bridgePayload\(",r'''function updateFinalButtons() {
+  const ready = Boolean(generatedParams && selectedLibrary);
+  const hasAssets=Boolean(proposal?.assets?.length);
+  const bridgeOk=bridgeReady && (!hasAssets || bridgeSupportsAssets);
+  $('downloadH5pBtn').disabled = !ready || !bridgeOk;
+  $('publishBtn').disabled = !ready || !bridgeOk;
+  if (ready && !bridgeReady) {
+    showStatus($('finalStatus'), 'El contenido está generado. Falta tener activo el puente H5P IA de Moodle para descargar o publicar.', 'warn');
+  } else if (ready && hasAssets && !bridgeSupportsAssets) {
+    showStatus($('finalStatus'), 'La actividad usa archivos. Actualiza el puente H5P IA de Moodle a la versión 1.2.0 para incluirlos dentro del .H5P.', 'warn');
+  } else if (ready && bridgeOk) {
+    showStatus($('finalStatus'), 'Moodle está listo para validar el archivo o publicarlo en el Banco de contenido.', 'ok');
+  }
+}
+
+''','updateFinalButtons')
+
+replace_once(
+"""  return {action,accessToken,libraryId:selectedLibrary.id,title:proposal.title,language:$('lang').value,params:generatedParams};
+""",
+"""  return {action,accessToken,libraryId:selectedLibrary.id,title:proposal.title,language:$('lang').value,params:generatedParams,assets:bridgeAssets()};
+""",
+'bridge payload assets')
+
+p.write_text(s,encoding='utf-8')
+print('guided asset patch applied')

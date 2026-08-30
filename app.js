@@ -377,7 +377,7 @@ INSTRUCCIONES ADICIONALES: ${instructions || 'Ninguna'}
 
 ${selectionRule}
 
-Todavía NO generes el contenido H5P. Primero presenta una propuesta concreta para que el usuario la apruebe.
+En esta etapa prepara únicamente una propuesta concreta para que el usuario la apruebe; no construyas todavía el contenido H5P final.
 Devuelve SOLO JSON válido con esta estructura exacta:
 {
   "machineName":"H5P.X",

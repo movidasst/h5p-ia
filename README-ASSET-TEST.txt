@@ -1,0 +1,1 @@
+Guided asset upload flow validated before selective promotion to main.

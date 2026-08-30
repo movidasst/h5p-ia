@@ -1,0 +1,25 @@
+name: Validate engine transparency
+on:
+  push:
+    branches: [fix-engine-transparency]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python .github/scripts/fix-engine-labels.py
+      - run: node --check app.js
+      - run: |
+          grep -q 'Google Gemini 3.6 Flash' index.html
+          grep -q 'ChatGPT/OpenAI no está conectado automáticamente' index.html
+          ! grep -q '>Gemini Pro<' index.html
+      - run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html app.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'Show real AI provider and model names'
+            git push
+          fi

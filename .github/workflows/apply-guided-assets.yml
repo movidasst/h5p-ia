@@ -1,0 +1,32 @@
+name: Apply guided asset uploads
+on:
+  push:
+    branches: [guided-assets-v1]
+    paths:
+      - scripts/patch-guided-assets.py
+      - .github/workflows/apply-guided-assets.yml
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python scripts/patch-guided-assets.py
+      - name: Validate JavaScript
+        run: node --check app.js
+      - name: Validate UX contract
+        run: |
+          grep -q "Recursos necesarios antes de crear" app.js
+          grep -q "h5pia://" app.js
+          grep -q "bridgeSupportsAssets" app.js
+          grep -q "assets:bridgeAssets()" app.js
+          grep -q "auth.js" index.html
+      - name: Commit validated app
+        run: |
+          git config user.name "David Linares"
+          git config user.email "gdochile@gmail.com"
+          git add app.js
+          git commit -m "Add guided media upload flow" || exit 0
+          git push

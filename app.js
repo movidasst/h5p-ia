@@ -307,7 +307,7 @@ async function checkBridge() {
     const response = await fetch(BRIDGE_URL, {
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer ' + session.access_token},
-      body:JSON.stringify({action:'status'})
+      body:JSON.stringify({action:'status',accessToken:session.access_token})
     });
     if (!response.ok) return;
     const data = await response.json();
@@ -329,15 +329,15 @@ function updateFinalButtons() {
   }
 }
 
-function bridgePayload(action) {
+function bridgePayload(action, accessToken) {
   if (!generatedParams || !selectedLibrary || !proposal) throw new Error('Primero crea la actividad.');
-  return {action,libraryId:selectedLibrary.id,title:proposal.title,language:$('lang').value,params:generatedParams};
+  return {action,accessToken,libraryId:selectedLibrary.id,title:proposal.title,language:$('lang').value,params:generatedParams};
 }
-async function authHeaders() {
+async function bridgeAuth() {
   if (!sb) throw new Error('Sesión no disponible.');
   const {data:{session}} = await sb.auth.getSession();
   if (!session?.access_token) throw new Error('Tu sesión expiró. Vuelve a ingresar.');
-  return {'Content-Type':'application/json','Authorization':'Bearer ' + session.access_token};
+  return {token:session.access_token,headers:{'Content-Type':'application/json','Authorization':'Bearer ' + session.access_token}};
 }
 
 async function downloadH5P() {
@@ -345,7 +345,8 @@ async function downloadH5P() {
   try {
     setBusy(button, true, 'Validando y preparando…');
     showStatus($('finalStatus'), 'Moodle está validando el paquete H5P…');
-    const response = await fetch(BRIDGE_URL, {method:'POST',headers:await authHeaders(),body:JSON.stringify(bridgePayload('download'))});
+    const auth = await bridgeAuth();
+    const response = await fetch(BRIDGE_URL, {method:'POST',headers:auth.headers,body:JSON.stringify(bridgePayload('download',auth.token))});
     if (!response.ok) {
       const data = await response.json().catch(()=>({}));
       throw new Error(data.error || ('Moodle rechazó el paquete · HTTP ' + response.status));
@@ -369,7 +370,8 @@ async function publishToMoodle() {
   try {
     setBusy(button, true, 'Publicando…');
     showStatus($('finalStatus'), 'Moodle está validando y publicando la actividad…');
-    const response = await fetch(BRIDGE_URL, {method:'POST',headers:await authHeaders(),body:JSON.stringify(bridgePayload('publish'))});
+    const auth = await bridgeAuth();
+    const response = await fetch(BRIDGE_URL, {method:'POST',headers:auth.headers,body:JSON.stringify(bridgePayload('publish',auth.token))});
     const data = await response.json().catch(()=>({}));
     if (!response.ok || !data?.ok) throw new Error(data.error || ('No se pudo publicar · HTTP ' + response.status));
     const url = data.published?.viewUrl;

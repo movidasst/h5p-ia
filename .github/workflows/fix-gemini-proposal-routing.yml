@@ -1,0 +1,35 @@
+name: Fix Gemini proposal routing
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/fix-gemini-proposal-routing.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch proposal routing trigger
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app.js')
+          s=p.read_text(encoding='utf-8')
+          old='Todavía NO generes el contenido H5P. Primero presenta una propuesta concreta para que el usuario la apruebe.'
+          new='En esta etapa prepara únicamente una propuesta concreta para que el usuario la apruebe; no construyas todavía el contenido H5P final.'
+          if old not in s:
+              raise SystemExit('proposal marker not found')
+          s=s.replace(old,new,1)
+          p.write_text(s,encoding='utf-8')
+          PY
+          node --check app.js
+          rm .github/workflows/fix-gemini-proposal-routing.yml
+      - name: Commit fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.js .github/workflows/fix-gemini-proposal-routing.yml
+          git commit -m 'Use selected Gemini model for proposals'
+          git push

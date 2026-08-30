@@ -411,7 +411,7 @@ La estructura debe ser concreta: número de preguntas, decisiones, hotspots, tar
 
 async function callGemini(prompt, assets=[]) {
   if (!sb) throw new Error('La sesión de IA todavía no está disponible. Recarga la página.');
-  const model = $('engine').value || 'gemini-2.5-flash';
+  const model = $('engine').value || 'gemini-3.6-flash';
   const {data, error} = await sb.functions.invoke('gemini-h5p', {body:{model,prompt,assets}});
   if (error) {
     let detail='';
@@ -672,6 +672,7 @@ function bind() {
   $('audience').addEventListener('input', resetAfterInputChange);
   $('level').addEventListener('change', resetAfterInputChange);
   $('lang').addEventListener('change', resetAfterInputChange);
+  $('engine').addEventListener('change', resetAfterInputChange);
   $('proposalBtn').addEventListener('click', createProposal);
   $('anotherBtn').addEventListener('click', createProposal);
   $('confirmBtn').addEventListener('click', confirmAndCreate);

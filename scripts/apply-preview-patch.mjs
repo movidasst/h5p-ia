@@ -42,31 +42,32 @@ function ensureH5pPreviewUI() {
 
   const style = document.createElement('style');
   style.id = 'h5piaPreviewStyles';
-  style.textContent = \`
-    .h5pia-preview-overlay{position:fixed;inset:0;z-index:1000;background:rgba(2,18,46,.72);display:grid;place-items:center;padding:10px}
-    .h5pia-preview-shell{width:min(100%,1050px);height:min(94vh,900px);background:#fff;border-radius:18px;overflow:hidden;display:grid;grid-template-rows:auto 1fr auto;box-shadow:0 24px 70px rgba(0,0,0,.28)}
-    .h5pia-preview-head{display:flex;gap:10px;align-items:center;padding:12px 14px;border-bottom:1px solid #dbe5ec;background:#f8fafc}
-    .h5pia-preview-head strong{color:#00205b}.h5pia-preview-head span{display:block;color:#64748b;font-size:.72rem;margin-top:2px}
-    .h5pia-preview-close{margin-left:auto;border:1px solid #dbe5ec;background:#fff;color:#00205b;border-radius:10px;padding:8px 11px;font-weight:900}
-    .h5pia-preview-frame-wrap{min-height:0;background:#eef2f6;padding:8px;overflow:hidden}
-    .h5pia-preview-frame{width:100%;height:100%;min-height:58vh;border:0;border-radius:10px;background:#fff}
-    .h5pia-preview-foot{padding:10px 12px;border-top:1px solid #dbe5ec;background:#fff;display:grid;gap:8px}
-    .h5pia-preview-note{margin:0;color:#64748b;font-size:.75rem;line-height:1.4}.h5pia-preview-actions{display:grid;grid-template-columns:1fr;gap:8px}
-    .h5pia-preview-actions button{min-height:46px;border-radius:12px;font-weight:900;padding:9px 12px}.h5pia-preview-correct{border:1px solid #dbe5ec;background:#fff;color:#00205b}.h5pia-preview-approve{border:0;background:#70ad47;color:#fff}
-    @media(min-width:680px){.h5pia-preview-overlay{padding:22px}.h5pia-preview-foot{grid-template-columns:1fr auto;align-items:center}.h5pia-preview-actions{grid-template-columns:auto auto}.h5pia-preview-frame{min-height:65vh}}
-  \`;
+  style.textContent = [
+    '.h5pia-preview-overlay{position:fixed;inset:0;z-index:1000;background:rgba(2,18,46,.72);display:grid;place-items:center;padding:10px}',
+    '.h5pia-preview-shell{width:min(100%,1050px);height:min(94vh,900px);background:#fff;border-radius:18px;overflow:hidden;display:grid;grid-template-rows:auto 1fr auto;box-shadow:0 24px 70px rgba(0,0,0,.28)}',
+    '.h5pia-preview-head{display:flex;gap:10px;align-items:center;padding:12px 14px;border-bottom:1px solid #dbe5ec;background:#f8fafc}',
+    '.h5pia-preview-head strong{color:#00205b}.h5pia-preview-head span{display:block;color:#64748b;font-size:.72rem;margin-top:2px}',
+    '.h5pia-preview-close{margin-left:auto;border:1px solid #dbe5ec;background:#fff;color:#00205b;border-radius:10px;padding:8px 11px;font-weight:900}',
+    '.h5pia-preview-frame-wrap{min-height:0;background:#eef2f6;padding:8px;overflow:hidden}',
+    '.h5pia-preview-frame{width:100%;height:100%;min-height:58vh;border:0;border-radius:10px;background:#fff}',
+    '.h5pia-preview-foot{padding:10px 12px;border-top:1px solid #dbe5ec;background:#fff;display:grid;gap:8px}',
+    '.h5pia-preview-note{margin:0;color:#64748b;font-size:.75rem;line-height:1.4}.h5pia-preview-actions{display:grid;grid-template-columns:1fr;gap:8px}',
+    '.h5pia-preview-actions button{min-height:46px;border-radius:12px;font-weight:900;padding:9px 12px}.h5pia-preview-correct{border:1px solid #dbe5ec;background:#fff;color:#00205b}.h5pia-preview-approve{border:0;background:#70ad47;color:#fff}',
+    '@media(min-width:680px){.h5pia-preview-overlay{padding:22px}.h5pia-preview-foot{grid-template-columns:1fr auto;align-items:center}.h5pia-preview-actions{grid-template-columns:auto auto}.h5pia-preview-frame{min-height:65vh}}'
+  ].join('\n');
   document.head.appendChild(style);
 
   const overlay = document.createElement('div');
   overlay.id = 'h5pPreviewOverlay';
   overlay.className = 'h5pia-preview-overlay';
   overlay.hidden = true;
-  overlay.innerHTML = \`
-    <section class="h5pia-preview-shell" role="dialog" aria-modal="true" aria-labelledby="h5pPreviewTitle">
-      <header class="h5pia-preview-head"><div><strong id="h5pPreviewTitle">Vista previa H5P</strong><span>Renderizada por el motor real de Moodle · no se publica en el Banco de contenido</span></div><button id="h5pPreviewClose" class="h5pia-preview-close" type="button">✕ Cerrar</button></header>
-      <div class="h5pia-preview-frame-wrap"><iframe id="h5pPreviewFrame" class="h5pia-preview-frame" title="Vista previa de la actividad H5P"></iframe></div>
-      <footer class="h5pia-preview-foot"><p class="h5pia-preview-note">Interactúa con la actividad como lo haría un participante. Si algo está mal, cierra la vista previa y corrige o genera de nuevo. Solo publica cuando la hayas aprobado.</p><div class="h5pia-preview-actions"><button id="h5pPreviewCorrect" class="h5pia-preview-correct" type="button">Cerrar para corregir</button><button id="h5pPreviewApprove" class="h5pia-preview-approve" type="button">✓ Se ve bien · aprobar</button></div></footer>
-    </section>\`;
+  overlay.innerHTML = [
+    '<section class="h5pia-preview-shell" role="dialog" aria-modal="true" aria-labelledby="h5pPreviewTitle">',
+    '<header class="h5pia-preview-head"><div><strong id="h5pPreviewTitle">Vista previa H5P</strong><span>Renderizada por el motor real de Moodle · no se publica en el Banco de contenido</span></div><button id="h5pPreviewClose" class="h5pia-preview-close" type="button">✕ Cerrar</button></header>',
+    '<div class="h5pia-preview-frame-wrap"><iframe id="h5pPreviewFrame" class="h5pia-preview-frame" title="Vista previa de la actividad H5P"></iframe></div>',
+    '<footer class="h5pia-preview-foot"><p class="h5pia-preview-note">Interactúa con la actividad como lo haría un participante. Si algo está mal, cierra la vista previa y corrige o genera de nuevo. Solo publica cuando la hayas aprobado.</p><div class="h5pia-preview-actions"><button id="h5pPreviewCorrect" class="h5pia-preview-correct" type="button">Cerrar para corregir</button><button id="h5pPreviewApprove" class="h5pia-preview-approve" type="button">✓ Se ve bien · aprobar</button></div></footer>',
+    '</section>'
+  ].join('');
   document.body.appendChild(overlay);
   previewBtn.addEventListener('click', createH5pPreview);
   $('h5pPreviewClose').addEventListener('click', ()=>{ overlay.hidden=true; });

@@ -48,3 +48,4 @@ s=s.replace(old,new)
 s=s.replace("const response = await fetch(BRIDGE_URL, {method:'POST',headers:await authHeaders(),body:JSON.stringify(bridgePayload('download'))});", "const auth = await bridgeAuth();\n    const response = await fetch(BRIDGE_URL, {method:'POST',headers:auth.headers,body:JSON.stringify(bridgePayload('download',auth.token))});")
 s=s.replace("const response = await fetch(BRIDGE_URL, {method:'POST',headers:await authHeaders(),body:JSON.stringify(bridgePayload('publish'))});", "const auth = await bridgeAuth();\n    const response = await fetch(BRIDGE_URL, {method:'POST',headers:auth.headers,body:JSON.stringify(bridgePayload('publish',auth.token))});")
 p.write_text(s,encoding='utf-8')
+# trigger validation workflow

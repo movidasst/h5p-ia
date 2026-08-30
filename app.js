@@ -429,8 +429,9 @@ async function callGemini(prompt, assets=[]) {
   catch (_) { throw new Error('La IA no devolvió JSON válido. Prueba otra vez.'); }
 }
 
-async function createProposal() {
-  const button = $('proposalBtn');
+async function createProposal(event) {
+  const button = event?.currentTarget?.id === 'anotherBtn' ? $('anotherBtn') : $('proposalBtn');
+  const requestedChoice = $('library').value;
   showStatus($('proposalStatus'), '');
   $('proposalPanel').hidden = true;
   $('resultPanel').hidden = true;
@@ -440,10 +441,13 @@ async function createProposal() {
     setBusy(button, true, 'Pensando una propuesta…');
     showStatus($('proposalStatus'), 'La IA está diseñando una propuesta. Todavía no se está creando el H5P.');
     const rec = await callGemini(prompt);
+    if ($('library').value !== requestedChoice) {
+      throw new Error('Cambiaste el tipo de actividad mientras la IA preparaba la propuesta. Pulsa de nuevo Ver propuesta.');
+    }
     if (!rec || typeof rec !== 'object') throw new Error('Propuesta inválida.');
     const recommended = findLatest(rec.machineName);
     if (!recommended) throw new Error('La IA propuso una actividad que no está instalada en Moodle.');
-    if ($('library').value !== '__AUTO__' && rec.machineName !== $('library').value) {
+    if (requestedChoice !== '__AUTO__' && rec.machineName !== requestedChoice) {
       throw new Error('La IA cambió el tipo de actividad solicitado. Vuelve a intentar.');
     }
     const normalizedAssets=normalizeAssetSpecs(rec.assets,rec);
@@ -459,11 +463,12 @@ async function createProposal() {
     });
     selectedLibrary = recommended;
     proposal = makeProposal();
-    if ($('library').value === '__AUTO__') {
-      $('library').value = proposal.machineName;
-      onLibraryChange();
-      proposal = makeProposal();
-      selectedLibrary = recommended;
+    if (requestedChoice === '__AUTO__') {
+      const meta = friendlyMeta(recommended);
+      $('libraryInfo').hidden = false;
+      $('libraryInfoTitle').textContent = `✨ La IA propone: ${friendlyName(recommended)}`;
+      $('libraryInfoDescription').textContent = `Qué hace: ${meta.description}`;
+      $('libraryInfoMeta').textContent = 'El selector sigue en modo automático. Puedes pulsar Proponer otra sin quedar atado a esta actividad.';
     }
     renderProposal();
     showStatus($('proposalStatus'), proposal.assets.length ? 'Propuesta lista. Ahora sube los recursos solicitados y luego confirma.' : 'Propuesta lista. Revísala y confirma solo si te convence.', 'ok');

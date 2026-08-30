@@ -1,0 +1,29 @@
+name: Validate modular H5P app
+on:
+  push:
+    branches: [modular-safe]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check JavaScript syntax
+        run: |
+          node --check auth.js
+          node --check catalog-h5p.js
+          node --check app.js
+      - name: Check required DOM ids and script order
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          html=Path('index.html').read_text(encoding='utf-8')
+          required=['loginForm','loginEmail','loginPassword','logoutBtn','syncBtn','library','version','activityRequest','recommendBtn','generateBtn','validateBtn','downloadBtn']
+          missing=[x for x in required if f'id="{x}"' not in html]
+          if missing: raise SystemExit('Missing IDs: '+', '.join(missing))
+          scripts=['./auth.js','./catalog-h5p.js','./app.js']
+          positions=[html.find(f'src="{s}"') for s in scripts]
+          if -1 in positions or positions != sorted(positions): raise SystemExit('Invalid script order')
+          print('HTML contract OK')
+          PY

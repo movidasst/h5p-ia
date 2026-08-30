@@ -12,15 +12,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    :root{--navy:#00205b;--teal:#007b85;--green:#70ad47;--gold:#ffb600;--bg:#f5f8fb;--ink:#17324a;--muted:#64748b;--line:#dbe5ec;--danger:#b42318;--card:#fff;--shadow:0 18px 50px rgba(0,32,91,.12)}
+    :root{--navy:#00205b;--teal:#007b85;--green:#70ad47;--gold:#ffb600;--bg:#f5f8fb;--ink:#17324a;--muted:#64748b;--line:#dbe5ec;--danger:#b42318;--shadow:0 18px 50px rgba(0,32,91,.12)}
     *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;min-height:100vh;background:linear-gradient(145deg,#edf7f7,#f8fafc 48%,#eef3fa);color:var(--ink);font-family:Outfit,system-ui,sans-serif}button,input,select,textarea{font:inherit}button{cursor:pointer}[hidden]{display:none!important}
     .flag{height:4px;background:linear-gradient(90deg,var(--gold) 0 34%,var(--navy) 34% 72%,var(--green) 72%)}
-    .login{min-height:100vh;display:grid;place-items:center;padding:24px}.login-card{width:min(100%,470px);background:rgba(255,255,255,.97);border:1px solid rgba(0,123,133,.15);border-radius:28px;overflow:hidden;box-shadow:var(--shadow)}.login-body{padding:30px}.brand{display:flex;align-items:center;gap:14px}.brand-mark{width:64px;height:64px;border-radius:20px;display:grid;place-items:center;background:linear-gradient(135deg,var(--navy),var(--teal));color:#fff;font-weight:900;font-size:1.15rem}.brand h1{margin:0;color:var(--navy);font-size:1.35rem;line-height:1.05}.brand p{margin:5px 0 0;color:var(--teal);font-size:.76rem;font-weight:850;text-transform:uppercase;letter-spacing:.06em}.copy{margin:22px 0;color:var(--muted);line-height:1.55}.field{display:grid;gap:7px}.field+.field{margin-top:13px}.field label{font-size:.75rem;font-weight:900;color:#4f6678;text-transform:uppercase;letter-spacing:.05em}.control{width:100%;min-height:48px;border:1px solid var(--line);border-radius:13px;padding:11px 13px;background:#f9fbfc;color:var(--ink);outline:0}.control:focus{background:#fff;border-color:var(--teal);box-shadow:0 0 0 4px rgba(0,123,133,.1)}textarea.control{min-height:120px;resize:vertical}.btn{border:0;border-radius:13px;min-height:46px;padding:10px 15px;font-weight:900}.btn-primary{color:#fff;background:linear-gradient(135deg,var(--teal),var(--navy));box-shadow:0 8px 20px rgba(0,123,133,.2)}.btn-secondary{color:var(--navy);background:#edf4f7;border:1px solid var(--line)}.btn-full{width:100%;margin-top:18px}.error{margin-top:13px;padding:11px 13px;border-radius:12px;background:#fff0f0;border:1px solid #ffd2d2;color:#9f2222;font-size:.82rem;font-weight:750}
+    .login{min-height:100vh;display:grid;place-items:center;padding:24px}.login-card{width:min(100%,470px);background:rgba(255,255,255,.97);border:1px solid rgba(0,123,133,.15);border-radius:28px;overflow:hidden;box-shadow:var(--shadow)}.login-body{padding:30px}.brand{display:flex;align-items:center;gap:14px}.brand-mark{width:64px;height:64px;border-radius:20px;display:grid;place-items:center;background:linear-gradient(135deg,var(--navy),var(--teal));color:#fff;font-weight:900;font-size:1.15rem}.brand h1{margin:0;color:var(--navy);font-size:1.35rem}.brand p{margin:5px 0 0;color:var(--teal);font-size:.76rem;font-weight:850;text-transform:uppercase;letter-spacing:.06em}.copy{margin:22px 0;color:var(--muted);line-height:1.55}.field{display:grid;gap:7px}.field+.field{margin-top:13px}.field label{font-size:.75rem;font-weight:900;color:#4f6678;text-transform:uppercase;letter-spacing:.05em}.control{width:100%;min-height:48px;border:1px solid var(--line);border-radius:13px;padding:11px 13px;background:#f9fbfc;color:var(--ink);outline:0}.control:focus{background:#fff;border-color:var(--teal);box-shadow:0 0 0 4px rgba(0,123,133,.1)}textarea.control{min-height:120px;resize:vertical}.btn{border:0;border-radius:13px;min-height:46px;padding:10px 15px;font-weight:900}.btn:disabled{opacity:.65;cursor:wait}.btn-primary{color:#fff;background:linear-gradient(135deg,var(--teal),var(--navy));box-shadow:0 8px 20px rgba(0,123,133,.2)}.btn-secondary{color:var(--navy);background:#edf4f7;border:1px solid var(--line)}.btn-full{width:100%;margin-top:18px}.error{margin-top:13px;padding:11px 13px;border-radius:12px;background:#fff0f0;border:1px solid #ffd2d2;color:#9f2222;font-size:.82rem;font-weight:750}
     .topbar{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.94);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}.topbar-inner{max-width:1240px;margin:auto;min-height:68px;padding:8px 16px;display:flex;align-items:center;gap:12px}.top-title{font-weight:900;color:var(--navy)}.top-sub{font-size:.72rem;color:var(--teal);font-weight:800}.user{margin-left:auto;display:flex;align-items:center;gap:8px}.chip{max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid var(--line);border-radius:999px;background:#fff;padding:8px 11px;font-size:.76rem;font-weight:800}.main{max-width:1240px;margin:auto;padding:20px 14px 80px}.hero{margin:5px 0 18px}.hero h2{margin:0;color:var(--navy);font-size:clamp(1.55rem,4vw,2.3rem)}.hero p{margin:7px 0 0;color:var(--muted)}.grid{display:grid;grid-template-columns:1fr;gap:15px}.card{background:#fff;border:1px solid var(--line);border-radius:20px;padding:17px;box-shadow:0 9px 28px rgba(0,32,91,.06)}.card h3{margin:0 0 14px;color:var(--navy);font-size:1.03rem}.row{display:grid;grid-template-columns:1fr;gap:11px}.pills{display:flex;gap:8px;flex-wrap:wrap}.pill{border:1px solid var(--line);background:#fff;color:#52697a;border-radius:999px;padding:9px 12px;font-weight:800}.pill.active{background:#e7f5f6;border-color:#76c6ca;color:#006871}.status{margin-top:11px;padding:10px 12px;border-radius:12px;background:#f1f5f9;color:#536779;font-size:.82rem}.status.ok{background:#edf9ef;color:#35753a}.status.warn{background:#fff8e5;color:#7a5900}.status.err{background:#fff0f0;color:#9f2222}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}.actions .btn{flex:1}.small{font-size:.8rem;color:var(--muted);line-height:1.5}.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:12px}.kpi{border:1px solid var(--line);border-radius:13px;padding:11px;background:#f9fbfc}.kpi strong{display:block;color:var(--navy);font-size:1.35rem}.code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
-
-    .mode-block{margin-bottom:13px}.mode-label{display:block;margin-bottom:8px;font-size:.75rem;font-weight:900;color:#4f6678;text-transform:uppercase;letter-spacing:.05em}
-    .library-info{margin-top:12px;padding:14px 15px;border:1px solid #d9ebee;border-radius:16px;background:linear-gradient(180deg,#f8fcfc,#f4fafb)}
-    .library-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px;color:var(--navy);font-weight:900}.library-badge{display:inline-flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:999px;background:#e7f5f6;color:#006871;font-size:.72rem;font-weight:900;border:1px solid #b8dee1}.library-desc{margin:0;color:var(--ink);line-height:1.55}.library-meta{display:grid;gap:8px;margin-top:11px}.library-meta div{padding:9px 10px;border-radius:11px;background:#fff;border:1px solid #e3edf1}.library-meta strong{display:block;color:var(--navy);font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}.recommend-box{margin:10px 0 13px;padding:12px;border-radius:14px;background:#fff8e5;border:1px solid #f4df9b}.recommend-box .actions{margin-top:9px}.recommend-result{margin-top:9px;font-size:.84rem;line-height:1.5}.muted-note{font-size:.78rem;color:var(--muted);line-height:1.5;margin:7px 0 0}
+    .mode-block{margin-bottom:13px}.mode-label{display:block;margin-bottom:8px;font-size:.75rem;font-weight:900;color:#4f6678;text-transform:uppercase;letter-spacing:.05em}.muted-note{font-size:.78rem;color:var(--muted);line-height:1.5;margin:7px 0 0}
+    .library-info{margin-top:12px;padding:14px 15px;border:1px solid #d9ebee;border-radius:16px;background:linear-gradient(180deg,#f8fcfc,#f4fafb)}.library-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px;color:var(--navy);font-weight:900}.library-badge{display:inline-flex;padding:4px 8px;border-radius:999px;background:#e7f5f6;color:#006871;font-size:.72rem;font-weight:900;border:1px solid #b8dee1}.library-desc{margin:0;line-height:1.55}.library-meta{display:grid;gap:8px;margin-top:11px}.library-meta div{padding:9px 10px;border-radius:11px;background:#fff;border:1px solid #e3edf1}.library-meta strong{display:block;color:var(--navy);font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}.recommend-box{margin:10px 0 13px;padding:12px;border-radius:14px;background:#fff8e5;border:1px solid #f4df9b}.recommend-result{margin-top:9px;font-size:.84rem;line-height:1.5}
     @media(min-width:820px){.grid{grid-template-columns:360px 1fr}.row.two{grid-template-columns:1fr 1fr}.actions .btn{flex:0 0 auto}}
   </style>
 </head>
@@ -38,11 +36,10 @@
     </form>
   </div></div>
 </section>
-
 <section id="appView" hidden>
   <header class="topbar"><div class="topbar-inner"><div><div class="top-title">Generador H5P IA</div><div class="top-sub">Moodle 5.2 · Gemini + modo manual</div></div><div class="user"><span id="adminEmail" class="chip"></span><button id="logoutBtn" class="btn btn-secondary">Salir</button></div></div></header>
   <main class="main">
-    <div class="hero"><h2>Crear actividad H5P</h2><p>Generación híbrida, compatible con las librerías instaladas en Moodle y diseñada mobile-first.</p></div>
+    <div class="hero"><h2>Crear actividad H5P</h2><p>Elige exactamente el tipo de actividad que quieres o pide a Gemini una recomendación.</p></div>
     <div class="grid">
       <aside class="card">
         <h3>1. Moodle</h3>
@@ -52,72 +49,32 @@
         <div class="kpis"><div class="kpi"><strong id="familyCount">—</strong><span class="small">familias</span></div><div class="kpi"><strong id="versionCount">—</strong><span class="small">versiones</span></div></div>
         <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
         <h3>2. Motor IA</h3>
-        <div class="pills" id="enginePills">
-          <button class="pill active" data-engine="gemini-flash">Gemini Flash · Gratis</button>
-          <button class="pill" data-engine="gemini-pro">Gemini Pro</button>
-          <button class="pill" data-engine="manual-chatgpt">ChatGPT manual</button>
-          <button class="pill" data-engine="manual-gemini">Gemini manual</button>
-        </div>
+        <div class="pills" id="enginePills"><button class="pill active" data-engine="gemini-flash">Gemini Flash · Gratis</button><button class="pill" data-engine="gemini-pro">Gemini Pro</button><button class="pill" data-engine="manual-chatgpt">ChatGPT manual</button><button class="pill" data-engine="manual-gemini">Gemini manual</button></div>
         <div id="engineHelp" class="status ok">Gemini Flash automático. Ideal para la mayoría de actividades.</div>
-        <p class="small">Los modos Gemini automáticos usan la API key guardada como secreto en Supabase. La clave nunca llega al navegador.</p>
+        <p class="small">La API key está guardada en Supabase y nunca llega al navegador.</p>
       </aside>
-
       <section class="card">
         <h3>3. Diseño de actividad</h3>
-        <div class="mode-block">
-          <span class="mode-label">¿Quién decide el tipo de actividad?</span>
-          <div class="pills" id="creationModePills">
-            <button class="pill active" data-creation-mode="choose">Yo elijo el H5P</button>
-            <button class="pill" data-creation-mode="recommend">Que Gemini me recomiende</button>
-          </div>
-        </div>
+        <div class="mode-block"><span class="mode-label">¿Quién decide el tipo de actividad?</span><div class="pills" id="creationModePills"><button class="pill active" data-creation-mode="choose">Yo elijo el H5P</button><button class="pill" data-creation-mode="recommend">Que Gemini me recomiende</button></div></div>
         <div class="field"><label>¿Qué actividad quieres crear?</label><textarea id="activityRequest" class="control" placeholder="Ej. Quiero que el trabajador observe una imagen de un almacén e identifique 8 peligros de incendio."></textarea></div>
-        <p class="muted-note">Describe la interacción que quieres: cantidad de preguntas, uso de imagen o video, arrastrar elementos, decisiones, recorrido, juego, etc.</p>
-        <div id="recommendBox" class="recommend-box" hidden>
-          <strong style="color:var(--navy)">Recomendación de H5P</strong>
-          <div class="actions"><button id="recommendBtn" class="btn btn-secondary">Recomendar actividad</button></div>
-          <div id="recommendResult" class="recommend-result">Describe primero la actividad que deseas crear.</div>
-        </div>
-        <div class="row two">
-          <div class="field"><label>Tipo H5P</label><select id="library" class="control"><option>Sincroniza Moodle primero</option></select></div>
-          <div class="field"><label>Versión</label><select id="version" class="control"><option>—</option></select></div>
-        </div>
-        <div id="libraryInfo" class="library-info" hidden>
-          <div class="library-title"><span id="libraryTitleText">Actividad H5P</span><span id="libraryMachineBadge" class="library-badge">—</span></div>
-          <p id="libraryDescription" class="library-desc"></p>
-          <div class="library-meta">
-            <div><strong>Ideal para</strong><span id="libraryIdeal"></span></div>
-            <div><strong>¿Qué hace el participante?</strong><span id="libraryParticipant"></span></div>
-            <div><strong>Uso en móvil</strong><span id="libraryMobile"></span></div>
-          </div>
-        </div>
+        <p class="muted-note">Puedes indicar cantidad de preguntas, imagen, video, arrastrar elementos, decisiones, recorrido, juego o cualquier interacción.</p>
+        <div id="recommendBox" class="recommend-box" hidden><strong style="color:var(--navy)">Recomendación de H5P</strong><div class="actions"><button id="recommendBtn" class="btn btn-secondary">Recomendar actividad</button></div><div id="recommendResult" class="recommend-result">Describe primero la actividad que deseas crear.</div></div>
+        <div class="row two"><div class="field"><label>Tipo H5P</label><select id="library" class="control"><option>Sincroniza Moodle primero</option></select></div><div class="field"><label>Versión</label><select id="version" class="control"><option>—</option></select></div></div>
+        <div id="libraryInfo" class="library-info" hidden><div class="library-title"><span id="libraryTitleText">Actividad H5P</span><span id="libraryMachineBadge" class="library-badge">—</span></div><p id="libraryDescription" class="library-desc"></p><div class="library-meta"><div><strong>Ideal para</strong><span id="libraryIdeal"></span></div><div><strong>¿Qué hace el participante?</strong><span id="libraryParticipant"></span></div><div><strong>Uso en móvil</strong><span id="libraryMobile"></span></div></div></div>
         <div style="height:11px"></div>
-        <div class="row two">
-          <div class="field"><label>Título</label><input id="title" class="control" placeholder="Ej. Reto: Seguridad contra incendios"></div>
-          <div class="field"><label>Público</label><input id="audience" class="control" value="Trabajadores"></div>
-        </div>
-        <div style="height:11px"></div>
-        <div class="field"><label>Objetivo de aprendizaje</label><textarea id="objective" class="control" placeholder="¿Qué debe lograr el participante?"></textarea></div>
-        <div style="height:11px"></div>
-        <div class="field"><label>Contenido o contexto</label><textarea id="source" class="control" placeholder="Pega aquí la información base, caso, normativa o instrucciones."></textarea></div>
-        <div style="height:11px"></div>
-        <div class="row two"><div class="field"><label>Nivel</label><select id="level" class="control"><option>Básico</option><option selected>Intermedio</option><option>Avanzado</option></select></div><div class="field"><label>Idioma</label><select id="lang" class="control"><option value="es" selected>Español</option><option value="en">English</option><option value="pt">Português</option><option value="fr">Français</option></select></div></div>
+        <div class="row two"><div class="field"><label>Título</label><input id="title" class="control" placeholder="Ej. Reto: Seguridad contra incendios"></div><div class="field"><label>Público</label><input id="audience" class="control" value="Trabajadores"></div></div>
+        <div style="height:11px"></div><div class="field"><label>Objetivo de aprendizaje</label><textarea id="objective" class="control" placeholder="¿Qué debe lograr el participante?"></textarea></div>
+        <div style="height:11px"></div><div class="field"><label>Contenido o contexto</label><textarea id="source" class="control" placeholder="Pega aquí la información base, caso, normativa o instrucciones."></textarea></div>
+        <div style="height:11px"></div><div class="row two"><div class="field"><label>Nivel</label><select id="level" class="control"><option>Básico</option><option selected>Intermedio</option><option>Avanzado</option></select></div><div class="field"><label>Idioma</label><select id="lang" class="control"><option value="es" selected>Español</option><option value="en">English</option><option value="pt">Português</option><option value="fr">Français</option></select></div></div>
         <div class="status ok">✓ Mobile first · ✓ Retroalimentación educativa · ✓ JSON estructurado</div>
         <div class="actions"><button id="generateBtn" class="btn btn-primary">Generar</button><button id="copyPromptBtn" class="btn btn-secondary">Copiar prompt</button></div>
-
-        <div id="resultBlock" hidden style="margin-top:18px">
-          <h3>4. Resultado</h3>
-          <div class="field"><label>JSON H5P</label><textarea id="result" class="control code" style="min-height:270px"></textarea></div>
-          <div class="actions"><button id="validateBtn" class="btn btn-secondary">Validar JSON</button><button id="downloadBtn" class="btn btn-secondary">Descargar borrador</button></div>
-          <div id="validation" class="status">Pendiente.</div>
-        </div>
+        <div id="resultBlock" hidden style="margin-top:18px"><h3>4. Resultado</h3><div class="field"><label>JSON H5P</label><textarea id="result" class="control code" style="min-height:270px"></textarea></div><div class="actions"><button id="validateBtn" class="btn btn-secondary">Validar JSON</button><button id="downloadBtn" class="btn btn-secondary">Descargar borrador</button></div><div id="validation" class="status">Pendiente.</div></div>
       </section>
     </div>
   </main>
 </section>
-
-<script src="auth.js"></script>
-<script src="h5p-catalog.js"></script>
-<script src="app.js"></script>
+<script src="./auth.js"></script>
+<script src="./catalog-h5p.js"></script>
+<script src="./app.js"></script>
 </body>
 </html>

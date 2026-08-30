@@ -1,0 +1,36 @@
+name: Apply Spanish H5P activity labels
+on:
+  push:
+    branches: [ux-nombres-es]
+    paths:
+      - scripts/patch-spanish-activity-names.py
+      - .github/workflows/apply-spanish-activity-names.yml
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python scripts/patch-spanish-activity-names.py
+      - name: Check JavaScript syntax
+        run: |
+          node --check app.js
+          node --check catalog-h5p.js
+          node --check auth.js
+      - name: Check UX contract
+        run: |
+          grep -q "window.H5P_NAMES_ES" catalog-h5p.js
+          grep -q "Opción múltiple" catalog-h5p.js
+          grep -q "function friendlyName" app.js
+          grep -q "Qué hace:" app.js
+          grep -q "El participante:" app.js
+          grep -q "optionLabel(lib)" app.js
+      - name: Commit validated changes
+        run: |
+          git config user.name "movidasst"
+          git config user.email "actions@users.noreply.github.com"
+          git add app.js catalog-h5p.js
+          git diff --cached --quiet || git commit -m "Show H5P activity names and explanations in Spanish"
+          git push

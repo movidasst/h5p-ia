@@ -1,0 +1,106 @@
+name: Install local H5P viewer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/install-local-h5p-viewer.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  install:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pinned viewer assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          TMP="$(mktemp -d)"
+          trap 'rm -rf "$TMP"' EXIT
+
+          pushd "$TMP" >/dev/null
+          H5P_TGZ="$(npm pack h5p-standalone@3.8.2 --silent)"
+          tar -xzf "$H5P_TGZ"
+          mkdir -p "$GITHUB_WORKSPACE/assets/h5p-standalone"
+          cp -R package/dist/. "$GITHUB_WORKSPACE/assets/h5p-standalone/"
+          cp package/LICENSE "$GITHUB_WORKSPACE/assets/h5p-standalone/LICENSE"
+          rm -rf package "$H5P_TGZ"
+
+          JSZIP_TGZ="$(npm pack jszip@3.10.1 --silent)"
+          tar -xzf "$JSZIP_TGZ"
+          mkdir -p "$GITHUB_WORKSPACE/assets/vendor"
+          cp package/dist/jszip.min.js "$GITHUB_WORKSPACE/assets/vendor/jszip-3.10.1.min.js"
+          cp package/LICENSE.markdown "$GITHUB_WORKSPACE/assets/vendor/JSZIP-LICENSE.markdown"
+          popd >/dev/null
+
+          sha256sum \
+            assets/h5p-standalone/main.bundle.js \
+            assets/h5p-standalone/frame.bundle.js \
+            assets/h5p-standalone/styles/h5p.css \
+            assets/vendor/jszip-3.10.1.min.js \
+            > assets/H5P_VIEWER_SHA256SUMS.txt
+
+      - name: Apply viewer integration
+        run: python3 scripts/apply-h5p-local-viewer.py
+
+      - name: Validation 1 - JavaScript syntax
+        run: |
+          set -euo pipefail
+          node --check app.js
+          node --check h5p-preview-sw.js
+
+      - name: Validation 2 - runtime files and isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s assets/h5p-standalone/main.bundle.js
+          test -s assets/h5p-standalone/frame.bundle.js
+          test -s assets/h5p-standalone/styles/h5p.css
+          test -s assets/vendor/jszip-3.10.1.min.js
+          grep -q 'H5P_LOCAL_VIEWER_V1' app.js
+          grep -q 'prepareValidatedH5pBlob' app.js
+          grep -q 'cacheH5pPackage' app.js
+          grep -q 'h5p-preview-sw.js' app.js
+          ! grep -q 'H5PIA_PREVIEW_V130' app.js
+
+      - name: Validation 3 - structural assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('app.js').read_text(encoding='utf-8')
+          sw=Path('h5p-preview-sw.js').read_text(encoding='utf-8')
+          assert s.count('async function downloadH5P()') == 1
+          assert s.count('async function prepareValidatedH5pBlob()') == 1
+          assert s.count('function ensureH5pViewerUI()') == 1
+          assert s.count('function bind()') == 1
+          assert "const H5P_VIEWER_MAIN = '/assets/h5p-standalone/main.bundle.js';" in s
+          assert "const H5P_VIEWER_JSZIP = '/assets/vendor/jszip-3.10.1.min.js';" in s
+          assert "navigator.serviceWorker.register('/h5p-preview-sw.js'" in s
+          assert "if (publish) publish.hidden = true;" in s
+          assert 'upload_content' not in s
+          assert "PREVIEW_PREFIX = '/__h5p_preview__/';" in sw
+          assert "request.headers.get('range')" in sw
+          print('viewer-validation-3-ok')
+          PY
+          git diff --check
+
+      - name: Commit viewer
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.js h5p-preview-sw.js assets scripts/apply-h5p-local-viewer.py
+          if git diff --cached --quiet; then
+            echo 'No changes to commit'
+            exit 0
+          fi
+          git commit -m 'Add browser-only H5P visualizer'
+          git push

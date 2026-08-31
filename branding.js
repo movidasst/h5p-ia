@@ -9,17 +9,10 @@
     email: 'info@movidasst.com'
   };
 
-  const PROPOSAL_RULE = `[BRANDING_AUTOMATICO_MOVIDA_SST]
-REGLA INSTITUCIONAL PARA LA PROPUESTA:
-- El título debe comenzar exactamente con: Academia Movida SST ·
-- Mantén el título breve después del prefijo.
-- En el resumen menciona una sola vez: De la Reacción a la Prevención · www.movidasst.com · Elaborado por David Linares Brea · info@movidasst.com.
-- No solicites imágenes ni otros recursos únicamente para branding.
-- No inventes campos H5P ni alteres la lógica pedagógica para insertar la marca.`;
+  const PROPOSAL_RULE = `[BRANDING_AUTOMATICO_MOVIDA_SST]\nREGLA INSTITUCIONAL PARA LA PROPUESTA:\n- El título debe comenzar exactamente con: Academia Movida SST ·\n- Mantén el título breve después del prefijo.\n- En el resumen menciona una sola vez: De la Reacción a la Prevención · www.movidasst.com · Elaborado por David Linares Brea · info@movidasst.com.\n- No solicites imágenes ni otros recursos únicamente para branding.\n- No inventes campos H5P ni alteres la lógica pedagógica para insertar la marca.`;
 
   // Esta instrucción ayuda a la IA, pero el branding final ya no depende de que la IA la obedezca.
-  const GENERATION_RULE = `[BRANDING_VISIBLE_MOVIDA_SST]
-Cuando semantics lo permita, reserva un campo de texto visible para identificar la actividad como Academia Movida SST. No conviertas el branding en pregunta, respuesta ni puntuación.`;
+  const GENERATION_RULE = `[BRANDING_VISIBLE_MOVIDA_SST]\nCuando semantics lo permita, reserva un campo de texto visible para identificar la actividad como Academia Movida SST. No conviertas el branding en pregunta, respuesta ni puntuación.`;
 
   function brandedTitle(title) {
     const clean = String(title || '').trim();
@@ -165,11 +158,24 @@ Cuando semantics lo permita, reserva un campo de texto visible para identificar 
     integration.insertAdjacentElement('afterend', notice);
   }
 
+  function enablePublishButton() {
+    const button = document.getElementById('publishBtn');
+    if (!button) return;
+    button.hidden = false;
+    button.textContent = '↗ Publicar en Banco de contenido';
+  }
+
   document.addEventListener('click', event => {
     const target = event.target?.closest?.('#proposalBtn, #anotherBtn, #confirmBtn');
     if (!target) return;
     temporarilyAppendRule(target.id === 'confirmBtn' ? GENERATION_RULE : PROPOSAL_RULE);
   }, true);
+
+  // app.js oculta el botón durante boot(). Lo mostramos justo después de que
+  // todos los listeners de autenticación hayan terminado, sin alterar app.js.
+  window.addEventListener('h5p-auth-ready', () => {
+    setTimeout(enablePublishButton, 0);
+  });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', installBrandingNotice, {once:true});

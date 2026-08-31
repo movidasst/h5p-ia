@@ -15,8 +15,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Apply isolated hotfix
-        run: python3 scripts/hotfix-local-catalog-viewer-v2.py
+      - name: Apply isolated hotfixes
+        run: |
+          python3 scripts/hotfix-local-catalog-viewer-v2.py
+          python3 scripts/fix-viewer-embed-div.py
 
       - name: Validation 1 - JavaScript syntax and auth isolation
         run: |
@@ -32,7 +34,7 @@ jobs:
           node --check /tmp/h5p-viewer-frame.js
           git diff --exit-code -- auth.js
 
-      - name: Validation 2 - catalog and legacy UI assertions
+      - name: Validation 2 - catalog, isolation and viewer assertions
         run: |
           grep -q 'H5P_CATALOG_VIEWER_HOTFIX_V2' app.js
           grep -q 'function localCatalogLibraries' app.js
@@ -40,11 +42,13 @@ jobs:
           grep -q 'h5p-viewer-frame.html' app.js
           grep -q 'await result' app.js
           grep -q 'await new window.H5PStandalone.H5P' h5p-viewer-frame.html
+          grep -q "embedType:'div'" h5p-viewer-frame.html
+          grep -q "player.querySelector('.h5p-content')" h5p-viewer-frame.html
           ! grep -q 'No se pudo conectar con Moodle. Pulsa Actualizar.' app.js
           ! grep -q 'Conectando con Moodle' index.html
           ! grep -q 'Solo verás actividades instaladas en tu Moodle' index.html
 
-      - name: Validation 3 - real H5P playback smoke test
+      - name: Validation 3 - strict real H5P playback smoke test
         run: |
           set -e
           curl -L --fail --retry 3 'https://raw.githubusercontent.com/tunapanda/h5p-standalone/master/test/h5p-test.h5p' -o test-fixture.h5p
@@ -71,7 +75,8 @@ jobs:
               window.addEventListener('message',e=>{
                 if(e.origin!==location.origin||e.source!==frame.contentWindow||e.data?.source!=='movidasst-h5p-viewer')return;
                 clearTimeout(timer);
-                if(e.data.type==='ready')finish('ready',e.data.mainLibrary||'');else finish('error',e.data.message||'viewer error');
+                if(e.data.type==='ready' && e.data.rendered===true) finish('ready',e.data.mainLibrary||'');
+                else finish('error',e.data.message||'viewer error');
               });
               frame.src='/h5p-viewer-frame.html?base='+encodeURIComponent(base);
             }catch(e){finish('error',e.message||String(e));}
@@ -92,29 +97,43 @@ jobs:
             const browser=await puppeteer.launch({executablePath:process.env.CHROME_BIN,headless:true,args:['--no-sandbox','--disable-gpu']});
             const page=await browser.newPage();
             const logs=[];
-            page.on('console',m=>logs.push('console '+m.type()+': '+m.text()));
-            page.on('pageerror',e=>logs.push('pageerror: '+e.message));
-            page.on('requestfailed',r=>logs.push('requestfailed: '+r.url()+' '+(r.failure()?.errorText||'')));
+            const previewFailures=[];
+            const fatal=[];
+            page.on('console',m=>{
+              const text=m.text();
+              logs.push('console '+m.type()+': '+text);
+              if(/Unable to find constructor|TypeError:|ReferenceError:/i.test(text)) fatal.push(text);
+            });
+            page.on('pageerror',e=>{logs.push('pageerror: '+e.message);fatal.push(e.message);});
+            page.on('requestfailed',r=>{
+              const item=r.url()+' '+(r.failure()?.errorText||'');
+              logs.push('requestfailed: '+item);
+              if(r.url().includes('/__h5p_preview__/')) previewFailures.push(item);
+            });
             await page.goto('http://127.0.0.1:8080/viewer-smoke.html',{waitUntil:'networkidle2',timeout:30000});
             await page.waitForFunction(()=>['ready','error'].includes(document.documentElement.dataset.result),{timeout:30000});
+            await new Promise(resolve=>setTimeout(resolve,1200));
             const result=await page.evaluate(()=>({result:document.documentElement.dataset.result,text:document.getElementById('result').textContent,frames:[...document.querySelectorAll('iframe')].length}));
-            console.log(JSON.stringify(result));
+            const viewerFrame=page.frames().find(f=>f.url().includes('/h5p-viewer-frame.html'));
+            const rendered=viewerFrame ? Boolean(await viewerFrame.$('.h5p-content')) : false;
+            const mainInteractive=viewerFrame ? await viewerFrame.evaluate(()=>Boolean(document.querySelector('.h5p-content')?.children.length)) : false;
+            console.log(JSON.stringify({...result,rendered,mainInteractive,previewFailures,fatal}));
             if(logs.length) console.log(logs.join('\n'));
             await browser.close();
-            if(result.result!=='ready') process.exit(2);
+            if(result.result!=='ready' || !rendered || !mainInteractive || previewFailures.length || fatal.length) process.exit(2);
           })().catch(e=>{console.error(e);process.exit(3);});
           NODE
           CHROME_BIN="$CHROME" node /tmp/h5p-viewer-test.cjs
           rm -f viewer-smoke.html test-fixture.h5p
 
-      - name: Commit only validated production files
+      - name: Commit only fully validated production files
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app.js index.html catalog-h5p.js
+          git add app.js index.html catalog-h5p.js h5p-viewer-frame.html
           if git diff --cached --quiet; then
             echo 'No changes to commit'
           else
-            git commit -m 'Restore H5P catalog and fix isolated viewer'
+            git commit -m 'Fix H5P playback and keep local activity catalog'
             git push
           fi

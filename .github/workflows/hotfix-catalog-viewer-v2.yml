@@ -1,0 +1,102 @@
+name: Hotfix catalog and H5P viewer V2
+
+on:
+  push:
+    paths:
+      - '.github/workflows/hotfix-catalog-viewer-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply isolated hotfix
+        run: python3 scripts/hotfix-local-catalog-viewer-v2.py
+
+      - name: Validation 1 - JavaScript syntax and auth isolation
+        run: |
+          node --check app.js
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          h=Path('h5p-viewer-frame.html').read_text(encoding='utf-8')
+          blocks=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',h,flags=re.S|re.I)
+          if not blocks: raise SystemExit('No inline viewer script found')
+          Path('/tmp/h5p-viewer-frame.js').write_text(blocks[-1],encoding='utf-8')
+          PY
+          node --check /tmp/h5p-viewer-frame.js
+          git diff --exit-code -- auth.js
+
+      - name: Validation 2 - catalog and legacy UI assertions
+        run: |
+          grep -q 'H5P_CATALOG_VIEWER_HOTFIX_V2' app.js
+          grep -q 'function localCatalogLibraries' app.js
+          grep -q 'Catálogo H5P local' app.js
+          grep -q 'h5p-viewer-frame.html' app.js
+          grep -q 'await result' app.js
+          grep -q 'await new window.H5PStandalone.H5P' h5p-viewer-frame.html
+          ! grep -q 'No se pudo conectar con Moodle. Pulsa Actualizar.' app.js
+          ! grep -q 'Conectando con Moodle' index.html
+          ! grep -q 'Solo verás actividades instaladas en tu Moodle' index.html
+
+      - name: Validation 3 - real H5P playback smoke test
+        run: |
+          set -e
+          curl -L --fail --retry 3 'https://raw.githubusercontent.com/tunapanda/h5p-standalone/master/test/h5p-test.h5p' -o test-fixture.h5p
+          cat > viewer-smoke.html <<'EOF'
+          <!doctype html><html><head><meta charset="utf-8"><script src="/assets/vendor/jszip-3.10.1.min.js"></script></head><body><div id="result">starting</div><script>
+          (async()=>{
+            const finish=(result,message='')=>{document.documentElement.dataset.result=result;document.getElementById('result').textContent=result+':'+message;};
+            try{
+              const reg=await navigator.serviceWorker.register('/h5p-preview-sw.js',{scope:'/'});await navigator.serviceWorker.ready;
+              const blob=await (await fetch('/test-fixture.h5p')).blob();
+              const zip=await JSZip.loadAsync(blob,{checkCRC32:true});
+              const cache=await caches.open('movidasst-h5p-preview-v1');
+              for(const req of await cache.keys()) await cache.delete(req);
+              const base='/__h5p_preview__/smoke-v2';
+              const mime=p=>{const e=p.split('.').pop().toLowerCase();return ({json:'application/json; charset=utf-8',js:'application/javascript; charset=utf-8',css:'text/css; charset=utf-8',svg:'image/svg+xml',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',woff:'font/woff',woff2:'font/woff2',ttf:'font/ttf',mp3:'audio/mpeg',mp4:'video/mp4'})[e]||'application/octet-stream';};
+              const enc=p=>p.split('/').map(encodeURIComponent).join('/');
+              for(const name of Object.keys(zip.files)){
+                const entry=zip.files[name];if(entry.dir)continue;
+                const data=await entry.async('arraybuffer');
+                await cache.put(new Request(location.origin+base+'/'+enc(name)),new Response(data,{headers:{'Content-Type':mime(name),'Cache-Control':'no-store'}}));
+              }
+              const frame=document.createElement('iframe');frame.style.width='800px';frame.style.height='700px';document.body.appendChild(frame);
+              const timer=setTimeout(()=>finish('error','timeout'),18000);
+              window.addEventListener('message',e=>{
+                if(e.origin!==location.origin||e.source!==frame.contentWindow||e.data?.source!=='movidasst-h5p-viewer')return;
+                clearTimeout(timer);
+                if(e.data.type==='ready')finish('ready',e.data.mainLibrary||'');else finish('error',e.data.message||'viewer error');
+              });
+              frame.src='/h5p-viewer-frame.html?base='+encodeURIComponent(base);
+            }catch(e){finish('error',e.message||String(e));}
+          })();
+          </script></body></html>
+          EOF
+          python3 -m http.server 8080 --bind 127.0.0.1 >/tmp/h5p-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          sleep 2
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME"
+          timeout 30s "$CHROME" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=22000 --dump-dom http://127.0.0.1:8080/viewer-smoke.html > /tmp/viewer-dom.html 2>/tmp/chrome.log || true
+          cat /tmp/viewer-dom.html
+          grep -q 'data-result="ready"' /tmp/viewer-dom.html
+          rm -f viewer-smoke.html test-fixture.h5p
+
+      - name: Commit only validated production files
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.js index.html catalog-h5p.js
+          if git diff --cached --quiet; then
+            echo 'No changes to commit'
+          else
+            git commit -m 'Restore H5P catalog and fix isolated viewer'
+            git push
+          fi

@@ -53,13 +53,13 @@ jobs:
           (async()=>{
             const finish=(result,message='')=>{document.documentElement.dataset.result=result;document.getElementById('result').textContent=result+':'+message;};
             try{
-              const reg=await navigator.serviceWorker.register('/h5p-preview-sw.js',{scope:'/'});await navigator.serviceWorker.ready;
+              await navigator.serviceWorker.register('/h5p-preview-sw.js',{scope:'/'});await navigator.serviceWorker.ready;
               const blob=await (await fetch('/test-fixture.h5p')).blob();
               const zip=await JSZip.loadAsync(blob,{checkCRC32:true});
               const cache=await caches.open('movidasst-h5p-preview-v1');
               for(const req of await cache.keys()) await cache.delete(req);
               const base='/__h5p_preview__/smoke-v2';
-              const mime=p=>{const e=p.split('.').pop().toLowerCase();return ({json:'application/json; charset=utf-8',js:'application/javascript; charset=utf-8',css:'text/css; charset=utf-8',svg:'image/svg+xml',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',woff:'font/woff',woff2:'font/woff2',ttf:'font/ttf',mp3:'audio/mpeg',mp4:'video/mp4'})[e]||'application/octet-stream';};
+              const mime=p=>{const e=p.split('.').pop().toLowerCase();return ({json:'application/json; charset=utf-8',js:'application/javascript; charset=utf-8',css:'text/css; charset=utf-8',svg:'image/svg+xml',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',woff:'font/woff',woff2:'font/woff2',ttf:'font/ttf',mp3:'audio/mpeg',mp4:'video/mp4'})[e]||'application/octet-stream';};
               const enc=p=>p.split('/').map(encodeURIComponent).join('/');
               for(const name of Object.keys(zip.files)){
                 const entry=zip.files[name];if(entry.dir)continue;
@@ -67,7 +67,7 @@ jobs:
                 await cache.put(new Request(location.origin+base+'/'+enc(name)),new Response(data,{headers:{'Content-Type':mime(name),'Cache-Control':'no-store'}}));
               }
               const frame=document.createElement('iframe');frame.style.width='800px';frame.style.height='700px';document.body.appendChild(frame);
-              const timer=setTimeout(()=>finish('error','timeout'),18000);
+              const timer=setTimeout(()=>finish('error','timeout'),20000);
               window.addEventListener('message',e=>{
                 if(e.origin!==location.origin||e.source!==frame.contentWindow||e.data?.source!=='movidasst-h5p-viewer')return;
                 clearTimeout(timer);
@@ -84,9 +84,27 @@ jobs:
           sleep 2
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME"
-          timeout 30s "$CHROME" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=22000 --dump-dom http://127.0.0.1:8080/viewer-smoke.html > /tmp/viewer-dom.html 2>/tmp/chrome.log || true
-          cat /tmp/viewer-dom.html
-          grep -q 'data-result="ready"' /tmp/viewer-dom.html
+          mkdir -p /tmp/h5p-puppeteer
+          npm install --prefix /tmp/h5p-puppeteer --no-save --package-lock=false puppeteer-core@24.16.0 >/tmp/npm-puppeteer.log 2>&1
+          cat > /tmp/h5p-viewer-test.cjs <<'NODE'
+          const puppeteer=require('/tmp/h5p-puppeteer/node_modules/puppeteer-core');
+          (async()=>{
+            const browser=await puppeteer.launch({executablePath:process.env.CHROME_BIN,headless:true,args:['--no-sandbox','--disable-gpu']});
+            const page=await browser.newPage();
+            const logs=[];
+            page.on('console',m=>logs.push('console '+m.type()+': '+m.text()));
+            page.on('pageerror',e=>logs.push('pageerror: '+e.message));
+            page.on('requestfailed',r=>logs.push('requestfailed: '+r.url()+' '+(r.failure()?.errorText||'')));
+            await page.goto('http://127.0.0.1:8080/viewer-smoke.html',{waitUntil:'networkidle2',timeout:30000});
+            await page.waitForFunction(()=>['ready','error'].includes(document.documentElement.dataset.result),{timeout:30000});
+            const result=await page.evaluate(()=>({result:document.documentElement.dataset.result,text:document.getElementById('result').textContent,frames:[...document.querySelectorAll('iframe')].length}));
+            console.log(JSON.stringify(result));
+            if(logs.length) console.log(logs.join('\n'));
+            await browser.close();
+            if(result.result!=='ready') process.exit(2);
+          })().catch(e=>{console.error(e);process.exit(3);});
+          NODE
+          CHROME_BIN="$CHROME" node /tmp/h5p-viewer-test.cjs
           rm -f viewer-smoke.html test-fixture.h5p
 
       - name: Commit only validated production files

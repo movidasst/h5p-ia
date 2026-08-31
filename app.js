@@ -58,8 +58,27 @@ function setBusy(button, busy, text) {
     button.textContent = button.dataset.oldText || button.textContent;
   }
 }
+// H5P_CATALOG_VIEWER_HOTFIX_V2 — local catalog always visible; Moodle is optional technical enrichment.
+function localCatalogLibraries() {
+  const names = Object.keys(window.H5P_CATALOG || {});
+  return names.map((machineName,index)=>({
+    id:'local:' + machineName,
+    machineName,
+    title:window.H5P_NAMES_ES?.[machineName] || machineName,
+    majorVersion:0,
+    minorVersion:0,
+    patchVersion:0,
+    runnable:true,
+    enabled:true,
+    semantics:[],
+    localCatalog:true,
+    localOrder:index
+  }));
+}
+
 function enabledLibraries() {
-  return (registry?.libraries || []).filter(x => x.runnable && x.enabled && Array.isArray(x.semantics));
+  const remote=(registry?.libraries || []).filter(x => x.runnable && x.enabled && Array.isArray(x.semantics));
+  return [...remote, ...localCatalogLibraries()];
 }
 function latestLibraries() {
   const map = new Map();
@@ -260,31 +279,32 @@ function assetManifest() {
 }
 
 async function syncRegistry() {
-  $('moodleDot').className = 'dot';
-  $('moodleStatus').textContent = 'Conectando con Moodle…';
-  $('library').disabled = true;
+  // The local catalog is primary. Never remove the activity types because Moodle is unavailable.
+  registry = {libraries:[], localFallback:true};
+  populateLibrarySelect();
+  $('moodleDot').className = 'dot ok';
+  $('moodleStatus').textContent = `Catálogo H5P local · ${latestLibraries().length} tipos disponibles`;
+  $('syncBtn').textContent = 'Actualizar catálogo';
+  bridgeReady = false;
+  bridgeSupportsAssets = false;
+  updateFinalButtons();
+
+  // Optional background enrichment: if the old technical registry is reachable,
+  // use its exact versions/semantics without making the UI depend on it.
   try {
     const response = await fetch(REGISTRY_URL, {headers:{Accept:'application/json'}, cache:'no-store'});
-    if (!response.ok) {
-      let detail = '';
-      try { detail = (await response.json()).error || ''; } catch (_) {}
-      throw new Error(detail || ('HTTP ' + response.status));
-    }
-    registry = await response.json();
-    if (!Array.isArray(registry?.libraries)) throw new Error('respuesta_invalida');
+    if (!response.ok) return;
+    const remote = await response.json();
+    if (!Array.isArray(remote?.libraries)) return;
+    registry = remote;
     populateLibrarySelect();
     $('moodleDot').className = 'dot ok';
-    $('moodleStatus').textContent = `Moodle conectado · ${registry.families ?? latestLibraries().length} tipos H5P disponibles`;
+    $('moodleStatus').textContent = `Catálogo H5P listo · ${latestLibraries().length} tipos disponibles`;
     await checkBridge();
-  } catch (error) {
-    registry = null;
-    $('library').innerHTML = '<option value="">No se pudieron cargar las actividades</option>';
-    $('library').disabled = true;
-    $('moodleDot').className = 'dot err';
-    $('moodleStatus').textContent = 'No se pudo conectar con Moodle. Pulsa Actualizar.';
+  } catch (_) {
+    // Deliberately silent: Moodle availability must not remove the catalog or viewer.
   }
 }
-
 function populateLibrarySelect() {
   const libs = latestLibraries();
   const select = $('library');
@@ -339,7 +359,7 @@ function onLibraryChange() {
     selectedLibrary = null;
     $('libraryInfo').hidden = false;
     $('libraryInfoTitle').textContent = '✨ La IA elegirá por ti';
-    $('libraryInfoDescription').textContent = 'Comparará tu tema con las actividades que realmente están instaladas en Moodle y propondrá la más adecuada.';
+    $('libraryInfoDescription').textContent = 'Comparará tu tema con las actividades disponibles en el catálogo H5P y propondrá la más adecuada.';
     $('libraryInfoMeta').textContent = 'Tú verás la propuesta antes de crear nada.';
     return;
   }
@@ -384,7 +404,7 @@ function proposalPrompt() {
   const lang = $('lang').value;
   const instructions = $('instructions').value.trim();
   const selectionRule = choice === '__AUTO__'
-    ? `Elige la mejor SOLO entre estas librerías instaladas:
+    ? `Elige la mejor SOLO entre estas librerías disponibles:
 ${JSON.stringify(uniqueInstalledForPrompt())}`
     : `Debes utilizar exactamente esta librería: ${choice}. No la cambies.`;
   return `Actúa como diseñador instruccional experto en H5P, microlearning y experiencia móvil.
@@ -466,7 +486,7 @@ async function createProposal(event) {
     }
     if (!rec || typeof rec !== 'object') throw new Error('Propuesta inválida.');
     const recommended = findLatest(rec.machineName);
-    if (!recommended) throw new Error('La IA propuso una actividad que no está instalada en Moodle.');
+    if (!recommended) throw new Error('La IA propuso una actividad que no está disponible en el catálogo H5P.');
     if (requestedChoice !== '__AUTO__' && rec.machineName !== requestedChoice) {
       throw new Error('La IA cambió el tipo de actividad solicitado. Vuelve a intentar.');
     }
@@ -856,34 +876,35 @@ function ensureViewerPageCss() {
 
 async function ensureH5pPreviewServiceWorker() {
   if (!('serviceWorker' in navigator) || !('caches' in window)) throw new Error('Este navegador no admite la vista previa H5P local.');
-  const registration = await navigator.serviceWorker.register('/h5p-preview-sw.js', {scope:'/'});
-  await navigator.serviceWorker.ready;
-  if (!navigator.serviceWorker.controller) {
-    await Promise.race([
-      new Promise(resolve=>navigator.serviceWorker.addEventListener('controllerchange',resolve,{once:true})),
-      new Promise(resolve=>setTimeout(resolve,2500))
-    ]);
+  let registration = await navigator.serviceWorker.register('/h5p-preview-sw.js', {scope:'/'});
+  registration = await navigator.serviceWorker.ready;
+  if (!registration.active) {
+    await new Promise((resolve,reject)=>{
+      const worker=registration.installing || registration.waiting;
+      if (!worker) return reject(new Error('No se pudo activar el visualizador local.'));
+      const timer=setTimeout(()=>reject(new Error('El visualizador local tardó demasiado en activarse.')),5000);
+      worker.addEventListener('statechange',()=>{
+        if(worker.state==='activated'){clearTimeout(timer);resolve();}
+      });
+    });
   }
-  if (!registration.active && !navigator.serviceWorker.controller) throw new Error('No se pudo activar el visualizador local. Recarga la aplicación una vez.');
+  if (!registration.active) throw new Error('No se pudo activar el visualizador local.');
+  return registration;
 }
-
 async function ensureH5pViewerRuntime() {
   if (h5pViewerRuntimePromise) return h5pViewerRuntimePromise;
   h5pViewerRuntimePromise = (async()=>{
-    ensureViewerPageCss();
     await Promise.all([
       ensureH5pPreviewServiceWorker(),
-      loadViewerScript('h5pViewerJsZip', H5P_VIEWER_JSZIP, ()=>Boolean(window.JSZip)),
-      loadViewerScript('h5pViewerStandalone', H5P_VIEWER_MAIN, ()=>Boolean(window.H5PStandalone?.H5P))
+      loadViewerScript('h5pViewerJsZip', H5P_VIEWER_JSZIP, ()=>Boolean(window.JSZip))
     ]);
-    if (!window.JSZip || !window.H5PStandalone?.H5P) throw new Error('El motor H5P local no está disponible.');
+    if (!window.JSZip) throw new Error('El descompresor H5P local no está disponible.');
   })().catch(error=>{
     h5pViewerRuntimePromise = null;
     throw error;
   });
   return h5pViewerRuntimePromise;
 }
-
 async function assertH5pZipBlob(blob) {
   if (!(blob instanceof Blob) || blob.size < 4) throw new Error('El archivo H5P está vacío o incompleto.');
   if (blob.size > H5P_VIEWER_MAX_COMPRESSED) throw new Error('El archivo H5P supera 40 MB. Para proteger la memoria del dispositivo, usa un paquete más liviano.');
@@ -993,7 +1014,7 @@ function ensureH5pViewerUI() {
     .h5p-viewer-overlay{position:fixed;inset:0;z-index:1200;background:rgba(0,20,52,.78);display:grid;place-items:center;padding:0}.h5p-viewer-shell{width:100%;height:100dvh;background:#fff;display:grid;grid-template-rows:auto auto 1fr auto;overflow:hidden}
     .h5p-viewer-head{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid #dbe5ec;background:#fff}.h5p-viewer-head-text{min-width:0;flex:1}.h5p-viewer-head strong{display:block;color:#00205b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.h5p-viewer-head span{display:block;margin-top:2px;color:#64748b;font-size:.7rem}.h5p-viewer-close{border:1px solid #dbe5ec;background:#fff;color:#00205b;border-radius:10px;min-width:42px;min-height:42px;font-weight:900}
     .h5p-viewer-devices{display:flex;gap:6px;padding:8px 10px;border-bottom:1px solid #e8eef2;background:#f8fafc;overflow-x:auto}.h5p-viewer-devices button{flex:0 0 auto;border:1px solid #dbe5ec;background:#fff;color:#52697a;border-radius:10px;padding:7px 10px;font-size:.72rem;font-weight:850}.h5p-viewer-devices button.active{border-color:#007b85;background:#eaf7f8;color:#006b74}
-    .h5p-viewer-stage{min-height:0;overflow:auto;background:#e8eef3;padding:8px;display:flex;justify-content:center;align-items:flex-start}.h5p-viewer-viewport{width:100%;min-height:100%;background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,32,91,.10);transition:max-width .2s ease,width .2s ease}.h5p-viewer-container{width:100%;min-height:260px}.h5p-viewer-loading{padding:28px;text-align:center;color:#64748b;font-weight:800}
+    .h5p-viewer-stage{min-height:0;overflow:auto;background:#e8eef3;padding:8px;display:flex;justify-content:center;align-items:flex-start}.h5p-viewer-viewport{width:100%;min-height:100%;background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,32,91,.10);transition:max-width .2s ease,width .2s ease}.h5p-viewer-container{width:100%;min-height:260px}.h5p-viewer-iframe{display:block;width:100%;min-height:70vh;border:0;background:#fff}.h5p-viewer-loading{padding:28px;text-align:center;color:#64748b;font-weight:800}
     .h5p-viewer-foot{display:grid;gap:7px;padding:9px 11px;border-top:1px solid #dbe5ec;background:#fff}.h5p-viewer-meta{margin:0;color:#64748b;font-size:.7rem;line-height:1.35}.h5p-viewer-foot-actions{display:flex;gap:7px}.h5p-viewer-foot-actions button{flex:1;min-height:44px;border-radius:11px;font-weight:900;padding:8px 11px}.h5p-viewer-foot-close{border:1px solid #dbe5ec;background:#fff;color:#00205b}.h5p-viewer-foot-download{border:0;background:#00205b;color:#fff}
     @media(min-width:680px){.h5p-viewer-tool .viewer-actions{grid-template-columns:1fr 1fr}.h5p-viewer-overlay{padding:18px}.h5p-viewer-shell{width:min(1120px,100%);height:min(94dvh,920px);border-radius:20px;box-shadow:0 28px 80px rgba(0,0,0,.30)}.h5p-viewer-stage{padding:14px}.h5p-viewer-foot{grid-template-columns:1fr auto;align-items:center}.h5p-viewer-foot-actions button{min-width:150px}}
   `;
@@ -1099,7 +1120,7 @@ async function openH5pViewer(blob, filename, meta={}) {
   overlay.hidden=false;
   document.body.style.overflow='hidden';
   $('h5pLocalViewerTitle').textContent=filename || 'Vista previa H5P';
-  $('h5pLocalViewerSub').textContent='H5P Standalone 3.8.2 · vista local · sin publicar';
+  $('h5pLocalViewerSub').textContent='H5P Standalone · visor aislado · sin publicar';
   $('h5pLocalViewerMeta').textContent='Validando estructura y preparando archivos temporales…';
   container.innerHTML='<div class="h5p-viewer-loading">Descomprimiendo y validando H5P…</div>';
 
@@ -1109,28 +1130,45 @@ async function openH5pViewer(blob, filename, meta={}) {
       const loading=container.querySelector('.h5p-viewer-loading');
       if (loading && (done===total || done%25===0)) loading.textContent=`Preparando archivos… ${done}/${total}`;
     });
-    container.replaceChildren();
     activeH5pViewerPackage={blob,filename:filename || 'actividad.h5p',source:meta.source || 'unknown',info};
-    activeH5pViewerPlayer=new window.H5PStandalone.H5P(container,{
-      h5pJsonPath:info.basePath,
-      librariesPath:info.basePath,
-      frameJs:H5P_VIEWER_FRAME,
-      frameCss:H5P_VIEWER_CSS,
-      frame:true,
-      copyright:true,
-      export:false,
-      icon:false,
-      fullScreen:true,
-      reportingIsEnabled:true
+
+    const frame=document.createElement('iframe');
+    frame.className='h5p-viewer-iframe';
+    frame.title='Actividad H5P interactiva';
+    frame.setAttribute('allow','fullscreen; autoplay; microphone; camera');
+    const frameUrl=new URL('/h5p-viewer-frame.html',location.origin);
+    frameUrl.searchParams.set('base',info.basePath);
+
+    const result=new Promise((resolve,reject)=>{
+      const timeout=setTimeout(()=>{
+        window.removeEventListener('message',onMessage);
+        reject(new Error('El reproductor H5P no terminó de iniciar. Se evitó mostrar una vista previa en blanco.'));
+      },20000);
+      function onMessage(event){
+        if(event.origin!==location.origin || event.source!==frame.contentWindow) return;
+        const data=event.data;
+        if(data?.source!=='movidasst-h5p-viewer') return;
+        if(data.type==='ready'){
+          clearTimeout(timeout);window.removeEventListener('message',onMessage);resolve(data);
+        } else if(data.type==='error'){
+          clearTimeout(timeout);window.removeEventListener('message',onMessage);reject(new Error(data.message || 'El reproductor H5P informó un error.'));
+        }
+      }
+      window.addEventListener('message',onMessage);
     });
-    $('h5pLocalViewerMeta').textContent=`✓ Estructura válida · ${info.mainLibrary} · ${info.files} archivos · ${Math.max(1,Math.round(info.extractedBytes/1024))} KB descomprimidos. Prueba botones, respuestas, imágenes y retroalimentación.`;
+
+    container.replaceChildren(frame);
+    frame.src=frameUrl.toString();
+    const ready=await result;
+    activeH5pViewerPlayer=frame;
+    $('h5pLocalViewerMeta').textContent=`✓ Reproducción iniciada · ${ready.mainLibrary || info.mainLibrary} · ${info.files} archivos · ${Math.max(1,Math.round(info.extractedBytes/1024))} KB descomprimidos. Prueba botones, respuestas, imágenes y retroalimentación.`;
   } catch(error) {
-    container.innerHTML=`<div class="h5p-viewer-loading">⚠ ${String(error.message || 'No se pudo visualizar el H5P.')}</div>`;
-    $('h5pLocalViewerMeta').textContent='El archivo no fue publicado ni enviado a Moodle.';
+    const safe=String(error.message || 'No se pudo visualizar el H5P.');
+    container.innerHTML='<div class="h5p-viewer-loading">⚠ '+safe.replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))+'</div>';
+    $('h5pLocalViewerMeta').textContent='El archivo no fue publicado ni enviado a ningún LMS.';
     throw error;
   }
 }
-
 async function previewGeneratedH5p() {
   const button=$('previewGeneratedH5pBtn') || $('previewGeneratedTopBtn');
   try {

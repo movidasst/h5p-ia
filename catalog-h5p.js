@@ -114,5 +114,5 @@ window.H5P_NAMES_ES={
 'H5P.TwitterUserFeed':'Feed de X / Twitter',
 'H5P.VirtualTour':'Recorrido virtual 360°'
 };
-window.H5P_CATALOG_FALLBACK=(lib)=>({description:'Actividad H5P instalada en tu Moodle. La aplicación puede utilizar su estructura técnica aunque todavía no tenga una ficha pedagógica específica.',ideal:'Usos definidos por las capacidades de esta librería.',participant:'Interactúa según el tipo de contenido configurado.',mobile:'Debe probarse en móvil antes de publicar.'});
+window.H5P_CATALOG_FALLBACK=(lib)=>({description:'Actividad H5P disponible en el catálogo local. La aplicación puede utilizar su ficha pedagógica aunque todavía no tenga una descripción específica.',ideal:'Usos definidos por las capacidades de esta librería.',participant:'Interactúa según el tipo de contenido configurado.',mobile:'Debe probarse en móvil antes de publicar.'});
 })();

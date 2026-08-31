@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#00205b">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>Crear H5P con IA · La Movida SST</title>
-  <meta name="description" content="Herramienta privada de La Movida SST para crear actividades H5P con IA y Moodle 5.2.">
+  <meta name="description" content="Herramienta privada de La Movida SST para crear, visualizar, validar y descargar actividades H5P con IA.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -42,12 +42,12 @@
   </div></div>
 </section>
 <section id="appView" hidden>
-  <header class="topbar"><div class="topbar-inner"><div><div class="top-title">Crear H5P con IA</div><div class="top-sub">Academia Movida SST · Moodle 5.2</div></div><div class="user"><span id="adminEmail" class="user-email"></span><button id="logoutBtn" class="logout">Salir</button></div></div></header>
+  <header class="topbar"><div class="topbar-inner"><div><div class="top-title">Crear H5P con IA</div><div class="top-sub">Academia Movida SST · H5P con IA</div></div><div class="user"><span id="adminEmail" class="user-email"></span><button id="logoutBtn" class="logout">Salir</button></div></div></header>
   <main class="main">
     <div class="hero"><h2>De una idea a una actividad H5P</h2><p>Elige el tipo, escribe el tema y revisa la propuesta antes de crearla.</p><div class="steps"><span class="step-chip"><strong>1</strong> Elige</span><span class="step-chip"><strong>2</strong> Tema</span><span class="step-chip"><strong>3</strong> Confirma</span><span class="step-chip"><strong>4</strong> Valida y descarga</span></div></div>
-    <div class="integration"><span id="moodleDot" class="dot"></span><span id="moodleStatus" class="integration-text">Conectando con Moodle…</span><button id="syncBtn" class="text-btn">Actualizar</button></div>
+    <div class="integration"><span id="moodleDot" class="dot"></span><span id="moodleStatus" class="integration-text">Cargando catálogo H5P local…</span><button id="syncBtn" class="text-btn">Actualizar catálogo</button></div>
     <section class="panel">
-      <div class="panel-head"><span class="number">1</span><div><h3>Elige el tipo de actividad</h3><p class="panel-sub">Solo verás actividades instaladas en tu Moodle.</p></div></div>
+      <div class="panel-head"><span class="number">1</span><div><h3>Elige el tipo de actividad</h3><p class="panel-sub">Elige entre todos los tipos de actividad disponibles en el catálogo H5P.</p></div></div>
       <div class="field"><label for="library">Tipo de actividad H5P</label><select id="library" class="control" disabled><option value="">Cargando actividades…</option></select></div>
       <div id="libraryInfo" class="selected-info" hidden><strong id="libraryInfoTitle"></strong><p id="libraryInfoDescription"></p><div id="libraryInfoMeta" class="selected-meta"></div></div>
     </section>

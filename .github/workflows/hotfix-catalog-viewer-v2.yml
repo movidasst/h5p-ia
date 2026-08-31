@@ -19,10 +19,12 @@ jobs:
         run: |
           python3 scripts/hotfix-local-catalog-viewer-v2.py
           python3 scripts/fix-viewer-embed-div.py
+          python3 scripts/fix-h5p-contenttype-compat.py
 
       - name: Validation 1 - JavaScript syntax and auth isolation
         run: |
           node --check app.js
+          node --check h5p-compat.js
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -43,12 +45,15 @@ jobs:
           grep -q 'await result' app.js
           grep -q 'await new window.H5PStandalone.H5P' h5p-viewer-frame.html
           grep -q "embedType:'div'" h5p-viewer-frame.html
+          grep -q "customJs:'/h5p-compat.js'" h5p-viewer-frame.html
           grep -q "player.querySelector('.h5p-content')" h5p-viewer-frame.html
+          grep -q '__movidaContentTypeCompatV1' h5p-compat.js
+          grep -q 'Object.defineProperty(constructor.prototype' h5p-compat.js
           ! grep -q 'No se pudo conectar con Moodle. Pulsa Actualizar.' app.js
           ! grep -q 'Conectando con Moodle' index.html
           ! grep -q 'Solo verás actividades instaladas en tu Moodle' index.html
 
-      - name: Validation 3 - strict real H5P playback smoke test
+      - name: Validation 3 - strict real H5P playback and ES6 compatibility
         run: |
           set -e
           curl -L --fail --retry 3 'https://raw.githubusercontent.com/tunapanda/h5p-standalone/master/test/h5p-test.h5p' -o test-fixture.h5p
@@ -80,6 +85,30 @@ jobs:
               });
               frame.src='/h5p-viewer-frame.html?base='+encodeURIComponent(base);
             }catch(e){finish('error',e.message||String(e));}
+          })();
+          </script></body></html>
+          EOF
+          cat > compat-smoke.html <<'EOF'
+          <!doctype html><html><head><meta charset="utf-8"></head><body><div id="result">starting</div><script src="/assets/h5p-standalone/frame.bundle.js"></script><script src="/h5p-compat.js"></script><script>
+          (()=>{
+            try{
+              class NativeCompatTest extends H5P.EventDispatcher {
+                constructor(){
+                  super();
+                  this.compatReady = typeof this.setActivityStarted === 'function' && typeof this.isRoot === 'function';
+                }
+                attach(){}
+              }
+              H5P.NativeCompatTest = NativeCompatTest;
+              const descriptor = Object.getOwnPropertyDescriptor(H5P.NativeCompatTest,'prototype');
+              const instance = H5P.newRunnable({library:'H5P.NativeCompatTest 1.0',params:{}},'compat-1',undefined,true,{standalone:true});
+              const ok = descriptor && descriptor.writable === false && instance && instance.compatReady === true && typeof instance.setActivityStarted === 'function';
+              document.documentElement.dataset.result = ok ? 'ready' : 'error';
+              document.getElementById('result').textContent = ok ? 'ready' : 'error';
+            }catch(error){
+              document.documentElement.dataset.result='error';
+              document.getElementById('result').textContent='error:'+String(error?.message||error);
+            }
           })();
           </script></body></html>
           EOF
@@ -124,16 +153,32 @@ jobs:
           })().catch(e=>{console.error(e);process.exit(3);});
           NODE
           CHROME_BIN="$CHROME" node /tmp/h5p-viewer-test.cjs
-          rm -f viewer-smoke.html test-fixture.h5p
+          cat > /tmp/h5p-compat-test.cjs <<'NODE'
+          const puppeteer=require('/tmp/h5p-puppeteer/node_modules/puppeteer-core');
+          (async()=>{
+            const browser=await puppeteer.launch({executablePath:process.env.CHROME_BIN,headless:true,args:['--no-sandbox','--disable-gpu']});
+            const page=await browser.newPage();
+            const errors=[];
+            page.on('pageerror',e=>errors.push(e.message));
+            await page.goto('http://127.0.0.1:8080/compat-smoke.html',{waitUntil:'networkidle2',timeout:30000});
+            await page.waitForFunction(()=>['ready','error'].includes(document.documentElement.dataset.result),{timeout:15000});
+            const result=await page.evaluate(()=>({result:document.documentElement.dataset.result,text:document.getElementById('result').textContent}));
+            console.log(JSON.stringify({...result,errors}));
+            await browser.close();
+            if(result.result!=='ready' || errors.length) process.exit(4);
+          })().catch(e=>{console.error(e);process.exit(5);});
+          NODE
+          CHROME_BIN="$CHROME" node /tmp/h5p-compat-test.cjs
+          rm -f viewer-smoke.html compat-smoke.html test-fixture.h5p
 
       - name: Commit only fully validated production files
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app.js index.html catalog-h5p.js h5p-viewer-frame.html
+          git add app.js index.html catalog-h5p.js h5p-viewer-frame.html h5p-compat.js
           if git diff --cached --quiet; then
             echo 'No changes to commit'
           else
-            git commit -m 'Fix H5P playback and keep local activity catalog'
+            git commit -m 'Add H5P ContentType compatibility to local viewer'
             git push
           fi

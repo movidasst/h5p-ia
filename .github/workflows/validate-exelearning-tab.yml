@@ -1,0 +1,127 @@
+name: Validate isolated eXeLearning tab
+
+on:
+  push:
+    paths:
+      - 'exe.html'
+      - 'exe.js'
+      - 'exe-core.js'
+      - 'exe-content.dtd'
+      - 'tools-nav.js'
+      - '.github/workflows/validate-exelearning-tab.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-link:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check 1 - JavaScript syntax and H5P isolation
+        run: |
+          node --check exe.js
+          node --check exe-core.js
+          node --check tools-nav.js
+          test "$(git hash-object auth.js)" = "c5b75e84440b3181b501eb709efd32623bc1c143"
+          git diff --exit-code -- auth.js app.js catalog-h5p.js h5p-compat.js h5p-viewer-frame.html
+
+      - name: Check 2 - build and validate real ELPX content.xml
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libxml2-utils >/dev/null
+          node <<'NODE'
+          const fs=require('fs');
+          const core=require('./exe-core.js');
+          const sample={
+            title:'Seguridad contra incendios',summary:'Recurso de prueba',author:'La Movida SST',language:'es',
+            objectives:['Identificar peligros','Tomar decisiones seguras'],
+            pages:[
+              {title:'Inicio',purpose:'Introducción',blocks:[{title:'Conceptos',kind:'explanation',html:'<p>Contenido introductorio.</p>'}]},
+              {title:'Caso práctico',purpose:'Aplicación',blocks:[{title:'Escenario',kind:'case',html:'<p>Analiza el escenario.</p>'},{title:'Cierre',kind:'evaluation',html:'<p>Comprueba lo aprendido.</p>'}]}
+            ]
+          };
+          const out=core.buildContentXml(sample);
+          const report=core.validateContentXml(out.xml);
+          if(!report.valid) throw new Error(report.errors.join(' | '));
+          if(report.pages!==2) throw new Error('Expected 2 pages');
+          if(report.components!==4) throw new Error(`Expected 4 components including objectives, got ${report.components}`);
+          const ids=[...out.xml.matchAll(/<(?:odePageId|odeBlockId|odeIdeviceId)>([^<]+)<\//g)].map(m=>m[1]);
+          for(const id of ids) if(!/^\d{14}[A-Z0-9]{6}$/.test(id)) throw new Error('Invalid ODE id: '+id);
+          if(out.xml.includes('<script')) throw new Error('Script leaked into ELPX content.xml');
+          fs.writeFileSync('/tmp/content.xml',out.xml);
+          fs.writeFileSync('/tmp/index.html',core.buildPreviewHtml(sample));
+          fs.writeFileSync('/tmp/imsmanifest.xml',core.buildScormManifest(sample));
+          console.log(JSON.stringify(report));
+          NODE
+          cp exe-content.dtd /tmp/content.dtd
+          cd /tmp
+          xmllint --noout --dtdvalid content.dtd content.xml
+          xmllint --noout imsmanifest.xml
+
+      - name: Check 3 - package and reopen ELPX ZIP
+        run: |
+          mkdir -p /tmp/exe-zip
+          npm install --prefix /tmp/exe-zip --no-save --package-lock=false jszip@3.10.1 >/dev/null 2>&1
+          node <<'NODE'
+          const fs=require('fs');
+          const JSZip=require('/tmp/exe-zip/node_modules/jszip');
+          (async()=>{
+            const zip=new JSZip();
+            zip.file('content.xml',fs.readFileSync('/tmp/content.xml','utf8'));
+            zip.file('content.dtd',fs.readFileSync('exe-content.dtd','utf8'));
+            zip.file('index.html',fs.readFileSync('/tmp/index.html','utf8'));
+            const buf=await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'});
+            const reopened=await JSZip.loadAsync(buf,{checkCRC32:true});
+            for(const path of ['content.xml','content.dtd','index.html']) if(!reopened.file(path)) throw new Error('Missing '+path);
+            const xml=await reopened.file('content.xml').async('string');
+            if(!xml.includes('<odeIdeviceTypeName>text</odeIdeviceTypeName>')) throw new Error('Editable text iDevice missing');
+            console.log('ELPX ZIP reopen + CRC: OK',buf.length);
+          })().catch(e=>{console.error(e);process.exit(2)});
+          NODE
+
+      - name: Check 4 - UI contract and independent backend
+        run: |
+          grep -q 'eXeLearning IA' exe.html
+          grep -q 'exeGenerateBtn' exe.html
+          grep -q 'exeElpxBtn' exe.html
+          grep -q 'exeScormBtn' exe.html
+          grep -q './auth.js' exe.html
+          grep -q './exe-core.js' exe.html
+          grep -q './exe.js' exe.html
+          grep -q "sb.functions.invoke('gemini-exe'" exe.js
+          grep -q 'buildContentXml' exe-core.js
+          grep -q 'buildScormManifest' exe-core.js
+          grep -q 'application/x-exelearning-elpx' exe.js
+
+      - name: Link eXeLearning tab only after all checks pass
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          tag='<script src="./tools-nav.js"></script>'
+          if tag not in s:
+              anchor='<script src="./auth.js"></script>'
+              if anchor not in s:
+                  raise SystemExit('index auth script anchor not found')
+              s=s.replace(anchor,tag+'\n'+anchor,1)
+              p.write_text(s,encoding='utf-8')
+          PY
+          grep -q '<script src="./tools-nav.js"></script>' index.html
+          test "$(git hash-object auth.js)" = "c5b75e84440b3181b501eb709efd32623bc1c143"
+          git diff --exit-code -- auth.js app.js catalog-h5p.js h5p-compat.js h5p-viewer-frame.html
+
+      - name: Commit only navigation link
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          if git diff --cached --quiet; then
+            echo 'Navigation already linked'
+          else
+            git commit -m 'Add isolated eXeLearning IA tab'
+            git push
+          fi

@@ -4,6 +4,7 @@ const $=id=>document.getElementById(id);
 let sb=null;
 let project=null;
 let busy=false;
+let previewMode='desktop';
 const ALLOWED_TAGS=new Set(['P','H3','H4','UL','OL','LI','STRONG','EM','BLOCKQUOTE','TABLE','THEAD','TBODY','TR','TH','TD','BR']);
 
 function status(message,kind=''){
@@ -38,6 +39,9 @@ function cleanProject(raw){
   const normalized=window.ExeCore.normalizeProject(raw||{});
   normalized.author=$('exeAuthor')?.value.trim()||'La Movida SST';
   normalized.language=$('exeLanguage')?.value||'es';
+  normalized.resourceType=$('exeResourceType')?.value||'auto';
+  normalized.pedagogy=$('exePedagogy')?.value||'auto';
+  normalized.modules=normalized.resourceType==='course'?Number($('exeModules')?.value||3):null;
   normalized.pages=normalized.pages.map(page=>({...page,blocks:page.blocks.map(block=>({...block,html:sanitizeHtml(block.html)}))}));
   return normalized;
 }
@@ -97,6 +101,9 @@ async function createProject(){
     status('Gemini está diseñando la estructura, los contenidos y las actividades…');
     const payload={
       topic,
+      resourceType:$('exeResourceType').value,
+      pedagogy:$('exePedagogy').value,
+      modules:Number($('exeModules').value||3),
       audience:$('exeAudience').value.trim(),
       duration:$('exeDuration').value.trim(),
       level:$('exeLevel').value,
@@ -111,14 +118,35 @@ async function createProject(){
   }catch(error){status(error?.message||'No se pudo generar el recurso eXeLearning.','err');}
   finally{setBusy(false);}
 }
+function setPreviewMode(mode){
+  previewMode=['desktop','tablet','mobile'].includes(mode)?mode:'desktop';
+  const device=$('exePreviewDevice');
+  if(device)device.className='preview-device '+previewMode;
+  const controls={desktop:$('exePreviewDesktop'),tablet:$('exePreviewTablet'),mobile:$('exePreviewMobile')};
+  Object.entries(controls).forEach(([name,button])=>{
+    if(!button)return;
+    const active=name===previewMode;
+    button.classList.toggle('active',active);
+    button.setAttribute('aria-pressed',String(active));
+  });
+  if(project&&$('exePreviewMeta')){
+    const labels={desktop:'Escritorio',tablet:'Tablet 768 px',mobile:'Móvil 390 px'};
+    $('exePreviewMeta').textContent=`Vista alumno · ${labels[previewMode]} · mismo contenido que se empaquetará · ${project.pages.length} páginas.`;
+  }
+}
 function preview(){
   syncFromEditor();
   const html=window.ExeCore.buildPreviewHtml(project);
   const frame=$('exePreviewFrame');
   frame.srcdoc=html;
   $('exePreviewPanel').hidden=false;
-  $('exePreviewMeta').textContent=`Vista previa del mismo contenido que se empaquetará · ${project.pages.length} páginas.`;
+  setPreviewMode(previewMode);
   $('exePreviewPanel').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function updateModulesVisibility(){
+  const isCourse=$('exeResourceType')?.value==='course';
+  const field=$('exeModulesField');
+  if(field)field.hidden=!isCourse;
 }
 function downloadBlob(blob,filename){
   const url=URL.createObjectURL(blob);
@@ -217,7 +245,13 @@ function wire(){
   $('exeHtmlBtn').addEventListener('click',downloadHtmlZip);
   $('exeScormBtn').addEventListener('click',downloadScorm);
   $('exeJsonBtn').addEventListener('click',downloadJson);
+  $('exeResourceType').addEventListener('change',updateModulesVisibility);
+  $('exePreviewDesktop').addEventListener('click',()=>setPreviewMode('desktop'));
+  $('exePreviewTablet').addEventListener('click',()=>setPreviewMode('tablet'));
+  $('exePreviewMobile').addEventListener('click',()=>setPreviewMode('mobile'));
+  $('exeRefreshPreview').addEventListener('click',preview);
   $('exeClosePreview').addEventListener('click',()=>{$('exePreviewPanel').hidden=true;$('exePreviewFrame').srcdoc='';});
+  updateModulesVisibility();
   window.addEventListener('h5p-auth-ready',event=>boot(event.detail));
   if(window.H5PAuth?.sb)boot({sb:window.H5PAuth.sb});
 }

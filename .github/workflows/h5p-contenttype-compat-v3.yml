@@ -1,0 +1,153 @@
+name: H5P viewer ContentType compatibility V3
+
+on:
+  push:
+    paths:
+      - '.github/workflows/h5p-contenttype-compat-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply viewer compatibility patch
+        run: |
+          python3 scripts/hotfix-local-catalog-viewer-v2.py
+          python3 scripts/fix-viewer-embed-div.py
+          python3 scripts/fix-h5p-contenttype-compat.py
+
+      - name: Check 1 - syntax and auth isolation
+        run: |
+          node --check app.js
+          node --check h5p-compat.js
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          html=Path('h5p-viewer-frame.html').read_text(encoding='utf-8')
+          block=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',html,flags=re.S|re.I)[-1]
+          Path('/tmp/viewer-frame.js').write_text(block,encoding='utf-8')
+          PY
+          node --check /tmp/viewer-frame.js
+          git diff --exit-code -- auth.js
+
+      - name: Check 2 - catalog and viewer invariants
+        run: |
+          grep -q 'H5P_CATALOG_VIEWER_HOTFIX_V2' app.js
+          grep -q 'function localCatalogLibraries' app.js
+          grep -q "embedType:'div'" h5p-viewer-frame.html
+          grep -q "customJs:'/h5p-compat.js'" h5p-viewer-frame.html
+          grep -q '__movidaContentTypeCompatV1' h5p-compat.js
+          grep -q 'Object.defineProperty(constructor.prototype' h5p-compat.js
+          ! grep -q 'No se pudo conectar con Moodle. Pulsa Actualizar.' app.js
+          ! grep -q 'Conectando con Moodle' index.html
+          ! grep -q 'Solo verás actividades instaladas en tu Moodle' index.html
+
+      - name: Prepare browser smoke tests
+        run: |
+          set -e
+          curl -L --fail --retry 3 'https://raw.githubusercontent.com/tunapanda/h5p-standalone/master/test/h5p-test.h5p' -o test-fixture.h5p
+          cat > viewer-smoke.html <<'EOF'
+          <!doctype html><html><head><meta charset="utf-8"><script src="/assets/vendor/jszip-3.10.1.min.js"></script></head><body><div id="result">starting</div><script>
+          (async()=>{
+            const finish=(result,message='')=>{document.documentElement.dataset.result=result;document.getElementById('result').textContent=result+':'+message;};
+            try{
+              await navigator.serviceWorker.register('/h5p-preview-sw.js',{scope:'/'}); await navigator.serviceWorker.ready;
+              const blob=await (await fetch('/test-fixture.h5p')).blob();
+              const zip=await JSZip.loadAsync(blob,{checkCRC32:true});
+              const cache=await caches.open('movidasst-h5p-preview-v1');
+              for(const req of await cache.keys()) await cache.delete(req);
+              const base='/__h5p_preview__/smoke-v3';
+              const mime=p=>({json:'application/json; charset=utf-8',js:'application/javascript; charset=utf-8',css:'text/css; charset=utf-8',svg:'image/svg+xml',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',woff:'font/woff',woff2:'font/woff2',ttf:'font/ttf',mp3:'audio/mpeg',mp4:'video/mp4'})[p.split('.').pop().toLowerCase()]||'application/octet-stream';
+              const enc=p=>p.split('/').map(encodeURIComponent).join('/');
+              for(const name of Object.keys(zip.files)){
+                const entry=zip.files[name]; if(entry.dir) continue;
+                const data=await entry.async('arraybuffer');
+                await cache.put(new Request(location.origin+base+'/'+enc(name)),new Response(data,{headers:{'Content-Type':mime(name),'Cache-Control':'no-store'}}));
+              }
+              const frame=document.createElement('iframe'); frame.style.cssText='width:800px;height:700px'; document.body.appendChild(frame);
+              const timer=setTimeout(()=>finish('error','timeout'),20000);
+              window.addEventListener('message',e=>{
+                if(e.origin!==location.origin||e.source!==frame.contentWindow||e.data?.source!=='movidasst-h5p-viewer') return;
+                clearTimeout(timer);
+                finish(e.data.type==='ready'&&e.data.rendered===true?'ready':'error',e.data.mainLibrary||e.data.message||'');
+              });
+              frame.src='/h5p-viewer-frame.html?base='+encodeURIComponent(base);
+            }catch(e){finish('error',e.message||String(e));}
+          })();
+          </script></body></html>
+          EOF
+
+          cat > compat-smoke.html <<'EOF'
+          <!doctype html><html><head><meta charset="utf-8"></head><body><div id="result">starting</div>
+          <script>
+          window.H5PIntegration={
+            baseUrl:'',url:'',urlLibraries:'',postUserStatistics:false,saveFreq:false,fullscreenDisabled:true,
+            contents:{},l10n:{H5P:{}},user:{name:'',mail:'',id:''},ajax:{setFinished:'',contentUserData:''}
+          };
+          </script>
+          <script src="/assets/h5p-standalone/frame.bundle.js"></script>
+          <script src="/h5p-compat.js"></script>
+          <script>
+          (()=>{
+            try{
+              class NativeCompatTest extends H5P.EventDispatcher {
+                constructor(){super();this.compatReady=typeof this.setActivityStarted==='function'&&typeof this.isRoot==='function';}
+                attach(){}
+              }
+              H5P.NativeCompatTest=NativeCompatTest;
+              const descriptor=Object.getOwnPropertyDescriptor(H5P.NativeCompatTest,'prototype');
+              const instance=H5P.newRunnable({library:'H5P.NativeCompatTest 1.0',params:{}},'compat-1',undefined,true,{standalone:true});
+              const ok=descriptor?.writable===false&&instance?.compatReady===true&&typeof instance.setActivityStarted==='function'&&typeof instance.isRoot==='function';
+              document.documentElement.dataset.result=ok?'ready':'error';
+              document.getElementById('result').textContent=ok?'ready':'error';
+            }catch(error){document.documentElement.dataset.result='error';document.getElementById('result').textContent='error:'+String(error?.message||error);}
+          })();
+          </script></body></html>
+          EOF
+
+      - name: Check 3 - real H5P playback
+        run: |
+          set -e
+          python3 -m http.server 8080 --bind 127.0.0.1 >/tmp/h5p-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          sleep 2
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          mkdir -p /tmp/h5p-puppeteer
+          npm install --prefix /tmp/h5p-puppeteer --no-save --package-lock=false puppeteer-core@24.16.0 >/tmp/npm-puppeteer.log 2>&1
+          cat >/tmp/test-real.cjs <<'NODE'
+          const puppeteer=require('/tmp/h5p-puppeteer/node_modules/puppeteer-core');
+          (async()=>{const browser=await puppeteer.launch({executablePath:process.env.CHROME_BIN,headless:true,args:['--no-sandbox','--disable-gpu']});const page=await browser.newPage();const failures=[],fatal=[];page.on('requestfailed',r=>{if(r.url().includes('/__h5p_preview__/'))failures.push(r.url())});page.on('pageerror',e=>fatal.push(e.message));page.on('console',m=>{if(/Unable to find constructor|TypeError:|ReferenceError:|setActivityStarted/i.test(m.text()))fatal.push(m.text())});await page.goto('http://127.0.0.1:8080/viewer-smoke.html',{waitUntil:'networkidle2',timeout:30000});await page.waitForFunction(()=>['ready','error'].includes(document.documentElement.dataset.result),{timeout:30000});await new Promise(r=>setTimeout(r,1000));const result=await page.evaluate(()=>document.documentElement.dataset.result);const vf=page.frames().find(f=>f.url().includes('/h5p-viewer-frame.html'));const rendered=vf?await vf.evaluate(()=>Boolean(document.querySelector('.h5p-content')?.children.length)):false;console.log(JSON.stringify({result,rendered,failures,fatal}));await browser.close();if(result!=='ready'||!rendered||failures.length||fatal.length)process.exit(2)})().catch(e=>{console.error(e);process.exit(3)});
+          NODE
+          CHROME_BIN="$CHROME" node /tmp/test-real.cjs
+
+      - name: Check 4 - native ES6 ContentType compatibility
+        run: |
+          set -e
+          python3 -m http.server 8081 --bind 127.0.0.1 >/tmp/h5p-http2.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          sleep 2
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          cat >/tmp/test-compat.cjs <<'NODE'
+          const puppeteer=require('/tmp/h5p-puppeteer/node_modules/puppeteer-core');
+          (async()=>{const browser=await puppeteer.launch({executablePath:process.env.CHROME_BIN,headless:true,args:['--no-sandbox','--disable-gpu']});const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:8081/compat-smoke.html',{waitUntil:'networkidle2',timeout:30000});await page.waitForFunction(()=>['ready','error'].includes(document.documentElement.dataset.result),{timeout:15000});const out=await page.evaluate(()=>({result:document.documentElement.dataset.result,text:document.getElementById('result').textContent}));console.log(JSON.stringify({...out,errors}));await browser.close();if(out.result!=='ready'||errors.length)process.exit(4)})().catch(e=>{console.error(e);process.exit(5)});
+          NODE
+          CHROME_BIN="$CHROME" node /tmp/test-compat.cjs
+
+      - name: Commit only after all four checks pass
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add h5p-viewer-frame.html h5p-compat.js app.js index.html catalog-h5p.js
+          if git diff --cached --quiet; then
+            echo 'No production changes to commit'
+          else
+            git commit -m 'Fix setActivityStarted compatibility in H5P viewer'
+            git push
+          fi

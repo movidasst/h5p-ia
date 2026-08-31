@@ -41,6 +41,8 @@ jobs:
           finalizer=text[fstart:fend]
           prelude=r'''
           const JSZip=require('/tmp/h5p-finalizer/node_modules/jszip');
+          const nativeLoadAsync=JSZip.loadAsync.bind(JSZip);
+          JSZip.loadAsync=async input=>nativeLoadAsync(input instanceof Blob ? Buffer.from(await input.arrayBuffer()) : input);
           global.window={JSZip};
           async function assertH5pZipBlob(blob){if(!(blob instanceof Blob)||blob.size<4)throw new Error('invalid blob');}
           async function ensureH5pViewerRuntime(){window.JSZip=JSZip;}
@@ -84,7 +86,7 @@ jobs:
             const raw=await buildFixture(true);
             const out=await finalizeGeneratedH5pPackage(raw);
             if(out.added!==4)throw new Error(`Expected 4 added dependencies, got ${out.added}`);
-            const finalZip=await JSZip.loadAsync(await out.blob.arrayBuffer());
+            const finalZip=await JSZip.loadAsync(out.blob);
             const finalManifest=JSON.parse(await finalZip.file('h5p.json').async('string'));
             const keys=new Set(finalManifest.preloadedDependencies.map(d=>`${d.machineName}@${d.majorVersion}.${d.minorVersion}`));
             const required=[

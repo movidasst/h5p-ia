@@ -931,6 +931,78 @@ async function clearLocalH5pPreviewCache() {
   await Promise.all(keys.map(key=>cache.delete(key)));
 }
 
+
+// H5P_VIEWER_DYNAMIC_DEPS_V1 — resolve content libraries that platforms such as Moodle
+// can load from their installed registry but h5p-standalone needs declared in h5p.json.
+function h5pParseLibraryRef(value) {
+  const match=String(value || '').trim().match(/^([A-Za-z0-9_.-]+)\s+(\d+)\.(\d+)(?:\.(\d+))?$/);
+  if (!match) return null;
+  return {
+    machineName:match[1],
+    majorVersion:Number(match[2]),
+    minorVersion:Number(match[3])
+  };
+}
+
+function h5pCollectContentLibraryRefs(value, found=new Map(), seen=new WeakSet()) {
+  if (!value || typeof value!=='object') return found;
+  if (seen.has(value)) return found;
+  seen.add(value);
+
+  if (!Array.isArray(value)) {
+    const ref=h5pParseLibraryRef(value.library);
+    if (ref) {
+      const key=`${ref.machineName}@${ref.majorVersion}.${ref.minorVersion}`;
+      found.set(key,ref);
+    }
+  }
+
+  const children=Array.isArray(value) ? value : Object.values(value);
+  for (const child of children) h5pCollectContentLibraryRefs(child,found,seen);
+  return found;
+}
+
+function h5pAugmentManifestForStandalone(h5pJson, contentJson, pathSet) {
+  const manifest={
+    ...h5pJson,
+    preloadedDependencies:Array.isArray(h5pJson?.preloadedDependencies)
+      ? h5pJson.preloadedDependencies.map(dep=>({...dep}))
+      : []
+  };
+
+  const existing=new Set();
+  for (const dep of manifest.preloadedDependencies) {
+    if (!dep?.machineName || dep.majorVersion===undefined || dep.minorVersion===undefined) continue;
+    existing.add(`${dep.machineName}@${Number(dep.majorVersion)}.${Number(dep.minorVersion)}`);
+  }
+
+  const refs=h5pCollectContentLibraryRefs(contentJson);
+  const unavailable=[];
+  let added=0;
+
+  for (const [key,ref] of refs) {
+    if (existing.has(key)) continue;
+    const libraryJson=`${ref.machineName}-${ref.majorVersion}.${ref.minorVersion}/library.json`;
+    if (!pathSet.has(libraryJson)) {
+      unavailable.push(`${ref.machineName} ${ref.majorVersion}.${ref.minorVersion}`);
+      continue;
+    }
+    manifest.preloadedDependencies.push({...ref});
+    existing.add(key);
+    added++;
+  }
+
+  if (unavailable.length) {
+    throw new Error(
+      'Este H5P usa librerías internas que no vienen dentro del archivo: ' +
+      [...new Set(unavailable)].join(', ') +
+      '. Moodle puede tenerlas instaladas, pero el visor autónomo necesita que estén incluidas en el paquete.'
+    );
+  }
+
+  return {manifest,added,detected:refs.size};
+}
+
 async function cacheH5pPackage(blob, onProgress=()=>{}) {
   await assertH5pZipBlob(blob);
   await ensureH5pViewerRuntime();
@@ -961,6 +1033,8 @@ async function cacheH5pPackage(blob, onProgress=()=>{}) {
     normalized.push({rawName, relative, entry:zip.files[rawName]});
   }
   const pathSet=new Set(normalized.map(x=>x.relative));
+  const dependencyResolution=h5pAugmentManifestForStandalone(h5pJson,contentJson,pathSet);
+  h5pJson=dependencyResolution.manifest;
   for (const dep of (h5pJson.preloadedDependencies || [])) {
     if (!dep?.machineName || dep.majorVersion===undefined || dep.minorVersion===undefined) continue;
     const libraryJson=`${dep.machineName}-${dep.majorVersion}.${dep.minorVersion}/library.json`;
@@ -995,13 +1069,34 @@ async function cacheH5pPackage(blob, onProgress=()=>{}) {
 
   try {
     for (let i=0;i<normalized.length;i+=8) await Promise.all(normalized.slice(i,i+8).map(processOne));
+
+    // Cache a viewer-only manifest with dynamic content dependencies included.
+    // The original .h5p Blob is never modified.
+    const manifestText=JSON.stringify(h5pJson);
+    const manifestBytes=new TextEncoder().encode(manifestText);
+    const manifestUrl=location.origin+basePath+'/'+h5pEncodedPath('h5p.json');
+    await cache.put(
+      new Request(manifestUrl),
+      new Response(manifestBytes,{headers:{
+        'Content-Type':'application/json; charset=utf-8',
+        'Content-Length':String(manifestBytes.byteLength),
+        'Cache-Control':'no-store'
+      }})
+    );
   } catch (error) {
     await clearLocalH5pPreviewCache().catch(()=>{});
     if (error?.name==='QuotaExceededError') throw new Error('El navegador no tiene espacio temporal suficiente para abrir este H5P.');
     throw error;
   }
 
-  return {basePath, mainLibrary:String(h5pJson.mainLibrary), files:normalized.length, extractedBytes:extracted, h5pJson};
+  return {
+    basePath,
+    mainLibrary:String(h5pJson.mainLibrary),
+    files:normalized.length,
+    extractedBytes:extracted,
+    h5pJson,
+    dynamicDependenciesAdded:dependencyResolution.added
+  };
 }
 
 function ensureH5pViewerUI() {
@@ -1161,7 +1256,8 @@ async function openH5pViewer(blob, filename, meta={}) {
     frame.src=frameUrl.toString();
     const ready=await result;
     activeH5pViewerPlayer=frame;
-    $('h5pLocalViewerMeta').textContent=`✓ Reproducción iniciada · ${ready.mainLibrary || info.mainLibrary} · ${info.files} archivos · ${Math.max(1,Math.round(info.extractedBytes/1024))} KB descomprimidos. Prueba botones, respuestas, imágenes y retroalimentación.`;
+    const dependencyNote=info.dynamicDependenciesAdded ? ` · ${info.dynamicDependenciesAdded} dependencias internas resueltas` : '';
+    $('h5pLocalViewerMeta').textContent=`✓ Reproducción iniciada · ${ready.mainLibrary || info.mainLibrary} · ${info.files} archivos · ${Math.max(1,Math.round(info.extractedBytes/1024))} KB descomprimidos${dependencyNote}. Prueba botones, respuestas, imágenes y retroalimentación.`;
   } catch(error) {
     const safe=String(error.message || 'No se pudo visualizar el H5P.');
     container.innerHTML='<div class="h5p-viewer-loading">⚠ '+safe.replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))+'</div>';

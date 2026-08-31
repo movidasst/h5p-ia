@@ -1,0 +1,32 @@
+name: Roll back H5P preview UI
+
+on:
+  push:
+    paths:
+      - '.github/workflows/rollback-preview-ui.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore last stable frontend
+        run: git checkout 2a06b568f7c3bf760d740a338f12bb84a6f4b8ab -- app.js
+      - name: Validate JavaScript
+        run: node --check app.js
+      - name: Commit rollback
+        run: |
+          if git diff --quiet -- app.js; then
+            echo 'No changes'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.js
+          git commit -m 'Rollback H5P preview UI to stable frontend'
+          git push

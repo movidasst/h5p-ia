@@ -1,0 +1,4 @@
+74a3fa8b6acdee907edf2030c26161a510a6d5d75bbd2aadb49f22c964ed50d4  assets/h5p-standalone/main.bundle.js
+e6deb39e2d0114869080bacdf4092dcb30cf2ce20f8bde3c3ba8af035fa86e0b  assets/h5p-standalone/frame.bundle.js
+bd1ce5c19c81392768b0a3da2382c298c5935743d90391a4f591b949bf90f9dc  assets/h5p-standalone/styles/h5p.css
+acc7e41455a80765b5fd9c7ee1b8078a6d160bbbca455aeae854de65c947d59e  assets/vendor/jszip-3.10.1.min.js

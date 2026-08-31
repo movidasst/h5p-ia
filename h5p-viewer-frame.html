@@ -81,7 +81,8 @@
           export:false,
           icon:false,
           fullScreen:false,
-          reportingIsEnabled:true
+          reportingIsEnabled:true,
+          customJs:'/h5p-compat.js'
         });
         const contentRoot=player.querySelector('.h5p-content');
         if(!contentRoot) throw new Error('El motor H5P inició, pero no creó el contenido interactivo.');

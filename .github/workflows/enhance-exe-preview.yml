@@ -1,0 +1,106 @@
+name: Enhance eXe resource selector and student preview
+
+on:
+  push:
+    paths:
+      - 'scripts/enhance-exe-resource-preview.py'
+      - '.github/workflows/enhance-exe-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply isolated eXe patch
+        run: python3 scripts/enhance-exe-resource-preview.py
+
+      - name: Check 1 - syntax and H5P isolation
+        run: |
+          node --check exe.js
+          node --check exe-core.js
+          git diff --exit-code -- auth.js app.js catalog-h5p.js h5p-viewer-frame.html h5p-compat.js
+          git diff --name-only | grep -qx 'exe.html'
+          git diff --name-only | grep -qx 'exe.js'
+          test "$(git diff --name-only | wc -l)" -eq 2
+
+      - name: Check 2 - selector and preview UI contract
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          html=Path('exe.html').read_text(encoding='utf-8')
+          ids=re.findall(r'\bid="([^"]+)"',html)
+          dup=sorted({x for x in ids if ids.count(x)>1})
+          if dup:
+              raise SystemExit('Duplicate ids: '+', '.join(dup))
+          required=[
+              'exeResourceType','exePedagogy','exeModulesField','exeModules',
+              'exePreviewDesktop','exePreviewTablet','exePreviewMobile',
+              'exeRefreshPreview','exePreviewDevice','exePreviewFrame'
+          ]
+          missing=[x for x in required if f'id="{x}"' not in html]
+          if missing:
+              raise SystemExit('Missing UI ids: '+', '.join(missing))
+          resource_values=['auto','unit','microcourse','guide','case','workshop','assessment','checklist','procedure','manual','induction','scenario','review','challenge','course']
+          for value in resource_values:
+              if f'value="{value}"' not in html:
+                  raise SystemExit('Missing resource type: '+value)
+          for mode in ['desktop','tablet','mobile']:
+              if f'.preview-device.{mode}' not in html:
+                  raise SystemExit('Missing preview mode CSS: '+mode)
+          print('UI contract OK')
+          PY
+
+      - name: Check 3 - generation payload and student preview behavior
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          js=Path('exe.js').read_text(encoding='utf-8')
+          required=[
+              "resourceType:$('exeResourceType').value",
+              "pedagogy:$('exePedagogy').value",
+              "modules:Number($('exeModules').value||3)",
+              "function setPreviewMode(mode)",
+              "function updateModulesVisibility()",
+              "$('exeRefreshPreview').addEventListener('click',preview)",
+              "const html=window.ExeCore.buildPreviewHtml(project)",
+              "frame.srcdoc=html"
+          ]
+          for needle in required:
+              if needle not in js:
+                  raise SystemExit('Missing behavior: '+needle)
+          # The same preview builder must also feed ELPX index and HTML ZIP.
+          if js.count("window.ExeCore.buildPreviewHtml(project)") < 3:
+              raise SystemExit('Preview/export parity is not preserved')
+          print('Behavior contract OK')
+          PY
+          node - <<'NODE'
+          const core=require('./exe-core.js');
+          const project={title:'Prueba SST',summary:'Resumen',objectives:['Aplicar'],pages:[
+            {title:'Inicio',purpose:'Orientar',blocks:[{title:'Concepto',kind:'explanation',html:'<p>Contenido</p>'}]},
+            {title:'Caso',purpose:'Aplicar',blocks:[{title:'Decisión',kind:'case',html:'<p>Situación</p>'}]}
+          ]};
+          const html=core.buildPreviewHtml(project);
+          for(const value of ['Prueba SST','Inicio','Caso','href="#page-1"','href="#page-2"','Contenido','Situación']){
+            if(!html.includes(value))throw new Error('Preview missing '+value);
+          }
+          if(!html.includes('@media(max-width:760px)'))throw new Error('Preview HTML lacks responsive rules');
+          console.log('Real preview HTML builder OK');
+          NODE
+
+      - name: Commit only validated eXe files
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add exe.html exe.js
+          if git diff --cached --quiet; then
+            echo 'No eXe changes to commit'
+          else
+            git commit -m 'Add eXe resource types and responsive student preview'
+            git push
+          fi

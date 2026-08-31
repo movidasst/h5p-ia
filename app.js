@@ -14,6 +14,9 @@ let assetUploads = new Map();
 let bridgeSupportsAssets = false;
 const MAX_ASSETS = 8;
 const MAX_SOURCE_FILE_BYTES = 12 * 1024 * 1024;
+const H5P_DRIVE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbweUDHocCNItLciLJr9ujg-FHIYU0h-733c2E1esv3TbC7rz4OEYAWS6K2QtGmO9g72/exec';
+const H5P_DRIVE_MAX_BYTES = 15 * 1024 * 1024;
+let lastValidatedH5p = null;
 
 const CATEGORY_ORDER = [
   ['Evaluación y preguntas', ['MultiChoice','TrueFalse','QuestionSet','SingleChoiceSet','Blanks','DragText','DragQuestion','MarkTheWords','Summary','Essay','SortParagraphs','Crossword','Dictation','MultiMediaChoice']],
@@ -586,11 +589,11 @@ function updateFinalButtons() {
   $('downloadH5pBtn').disabled = !ready || !bridgeOk;
   $('publishBtn').disabled = !ready || !bridgeOk;
   if (ready && !bridgeReady) {
-    showStatus($('finalStatus'), 'El contenido está generado. Falta tener activo el puente H5P IA de Moodle para descargar o publicar.', 'warn');
+    showStatus($('finalStatus'), 'El contenido está generado. Falta el empaquetador actual para preparar el archivo H5P.', 'warn');
   } else if (ready && hasAssets && !bridgeSupportsAssets) {
     showStatus($('finalStatus'), 'La actividad usa archivos. Actualiza el puente H5P IA de Moodle a la versión 1.2.0 para incluirlos dentro del .H5P.', 'warn');
   } else if (ready && bridgeOk) {
-    showStatus($('finalStatus'), 'Moodle está listo para validar el archivo o publicarlo en el Banco de contenido.', 'ok');
+    showStatus($('finalStatus'), 'El generador está listo para validar y preparar el archivo H5P.', 'ok');
   }
 }
 
@@ -605,26 +608,129 @@ async function bridgeAuth() {
   return {token:session.access_token,headers:{'Content-Type':'application/json','Authorization':'Bearer ' + session.access_token}};
 }
 
+async function blobToBase64ForDrive(blob) {
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const raw = String(reader.result || '');
+      resolve(raw.includes(',') ? raw.split(',')[1] : raw);
+    };
+    reader.onerror = ()=>reject(new Error('No se pudo preparar el archivo H5P para Drive.'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function saveValidatedH5pToDrive(blob, filename) {
+  if (!blob || !filename) throw new Error('No hay un H5P validado para respaldar.');
+  if (blob.size > H5P_DRIVE_MAX_BYTES) throw new Error('El H5P supera 15 MB y no puede enviarse por este respaldo de Drive.');
+  if (!sb) throw new Error('Sesión administrativa no disponible.');
+  const {data:{session}} = await sb.auth.getSession();
+  if (!session?.access_token) throw new Error('La sesión administrativa expiró.');
+  const base64 = await blobToBase64ForDrive(blob);
+  const body = new URLSearchParams({
+    action:'upload_h5p',
+    access_token:session.access_token,
+    file_name:filename,
+    title:proposal?.title || filename.replace(/\.h5p$/i,''),
+    library:selectedLibrary?.machineName || '',
+    topic:$('topic')?.value?.trim() || '',
+    generated_at:new Date().toISOString(),
+    file_base64:base64
+  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(()=>controller.abort(), 65000);
+  try {
+    const response = await fetch(H5P_DRIVE_SCRIPT_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
+      body,
+      redirect:'follow',
+      signal:controller.signal
+    });
+    const raw = await response.text();
+    let data;
+    try { data = JSON.parse(raw); }
+    catch (_) { throw new Error('Google Drive devolvió una respuesta no válida.'); }
+    if (!response.ok || data?.result !== 'success' || !data?.file_id) {
+      throw new Error(data?.message || ('No se pudo guardar la copia en Drive · HTTP ' + response.status));
+    }
+    return data;
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error('Google Drive tardó demasiado en guardar la copia. El archivo local sigue disponible.');
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function downloadBlobLocally(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+
+function ensureDriveRetryButton() {
+  let button = document.getElementById('driveRetryBtn');
+  if (button) return button;
+  const actions = document.querySelector('.final-actions');
+  if (!actions) return null;
+  button = document.createElement('button');
+  button.id = 'driveRetryBtn';
+  button.type = 'button';
+  button.className = 'final-btn';
+  button.style.cssText = 'border:1px solid #dbe5ec;background:#fff;color:#007b85;';
+  button.textContent = '☁ Guardar copia en Drive';
+  button.hidden = true;
+  button.addEventListener('click', async ()=>{
+    if (!lastValidatedH5p) return;
+    try {
+      setBusy(button, true, 'Guardando en Drive…');
+      const saved = await saveValidatedH5pToDrive(lastValidatedH5p.blob, lastValidatedH5p.filename);
+      button.hidden = true;
+      showStatus($('finalStatus'), '✓ Copia guardada en Drive · ' + (saved.file_name || lastValidatedH5p.filename), 'ok');
+    } catch (error) {
+      showStatus($('finalStatus'), error.message || 'No se pudo guardar la copia en Drive.', 'warn');
+    } finally { setBusy(button, false); }
+  });
+  actions.appendChild(button);
+  return button;
+}
+
 async function downloadH5P() {
   const button = $('downloadH5pBtn');
   try {
     setBusy(button, true, 'Validando y preparando…');
-    showStatus($('finalStatus'), 'Moodle está validando el paquete H5P…');
+    showStatus($('finalStatus'), 'Preparando el paquete H5P validado…');
     const auth = await bridgeAuth();
     const response = await fetch(BRIDGE_URL, {method:'POST',headers:auth.headers,body:JSON.stringify(bridgePayload('download',auth.token))});
     if (!response.ok) {
       const data = await response.json().catch(()=>({}));
-      throw new Error(data.error || ('Moodle rechazó el paquete · HTTP ' + response.status));
+      throw new Error(data.error || ('No se pudo preparar el paquete · HTTP ' + response.status));
     }
     const blob = await response.blob();
     const disposition = response.headers.get('Content-Disposition') || '';
     const match = disposition.match(/filename="?([^";]+)"?/i);
     const filename = match?.[1] || (safeFilename(proposal.title) + '.h5p');
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
-    showStatus($('finalStatus'), '✓ Archivo .H5P validado por Moodle y descargado.', 'ok');
+
+    // Local delivery happens first. Drive can never block the user's file.
+    downloadBlobLocally(blob, filename);
+    lastValidatedH5p = {blob, filename};
+    const retry = ensureDriveRetryButton();
+    if (retry) retry.hidden = true;
+
+    try {
+      showStatus($('finalStatus'), '✓ H5P descargado. Guardando una copia del mismo archivo en Drive…', 'ok');
+      const saved = await saveValidatedH5pToDrive(blob, filename);
+      showStatus($('finalStatus'), '✓ H5P descargado y copia guardada en Drive · ' + (saved.file_name || filename), 'ok');
+    } catch (driveError) {
+      if (retry) retry.hidden = false;
+      showStatus($('finalStatus'), '✓ El H5P se descargó correctamente. Drive no pudo guardar la copia: ' + (driveError.message || 'error desconocido') + '. Puedes reintentar sin regenerar.', 'warn');
+    }
   } catch (error) {
     showStatus($('finalStatus'), error.message || 'No se pudo descargar el H5P.', 'err');
   } finally { setBusy(button, false); }
@@ -665,162 +771,6 @@ function downloadJson() {
 }
 
 
-// H5PIA_PREVIEW_V130 — temporary Moodle-rendered preview, no Content Bank entry.
-let bridgeSupportsPreview = false;
-let activePreviewItemId = 0;
-let activePreviewUrl = '';
-let previewApprovedFingerprint = '';
-
-function previewFingerprint() {
-  if (!generatedParams || !selectedLibrary || !proposal) return '';
-  return JSON.stringify({
-    library:selectedLibrary.id,
-    title:proposal.title,
-    params:generatedParams,
-    assets:bridgeAssets().map(a=>({id:a.id,mimeType:a.mimeType,path:a.path,dataBase64:a.dataBase64}))
-  });
-}
-
-function ensureH5pPreviewUI() {
-  if (document.getElementById('previewH5pBtn')) return;
-  const actions = document.querySelector('.final-actions');
-  if (!actions) return;
-  const previewBtn = document.createElement('button');
-  previewBtn.id = 'previewH5pBtn';
-  previewBtn.type = 'button';
-  previewBtn.className = 'final-btn';
-  previewBtn.textContent = '👁 Vista previa H5P';
-  previewBtn.style.cssText = 'border:0;background:#007b85;color:#fff;';
-  previewBtn.disabled = true;
-  actions.insertBefore(previewBtn, actions.firstChild);
-
-  const style = document.createElement('style');
-  style.id = 'h5piaPreviewStyles';
-  style.textContent = [
-    '.h5pia-preview-overlay{position:fixed;inset:0;z-index:1000;background:rgba(2,18,46,.72);display:grid;place-items:center;padding:10px}',
-    '.h5pia-preview-shell{width:min(100%,1050px);height:min(94vh,900px);background:#fff;border-radius:18px;overflow:hidden;display:grid;grid-template-rows:auto 1fr auto;box-shadow:0 24px 70px rgba(0,0,0,.28)}',
-    '.h5pia-preview-head{display:flex;gap:10px;align-items:center;padding:12px 14px;border-bottom:1px solid #dbe5ec;background:#f8fafc}',
-    '.h5pia-preview-head strong{color:#00205b}.h5pia-preview-head span{display:block;color:#64748b;font-size:.72rem;margin-top:2px}',
-    '.h5pia-preview-close{margin-left:auto;border:1px solid #dbe5ec;background:#fff;color:#00205b;border-radius:10px;padding:8px 11px;font-weight:900}',
-    '.h5pia-preview-frame-wrap{min-height:0;background:#eef2f6;padding:8px;overflow:hidden}',
-    '.h5pia-preview-frame{width:100%;height:100%;min-height:58vh;border:0;border-radius:10px;background:#fff}',
-    '.h5pia-preview-foot{padding:10px 12px;border-top:1px solid #dbe5ec;background:#fff;display:grid;gap:8px}',
-    '.h5pia-preview-note{margin:0;color:#64748b;font-size:.75rem;line-height:1.4}.h5pia-preview-actions{display:grid;grid-template-columns:1fr;gap:8px}',
-    '.h5pia-preview-actions button{min-height:46px;border-radius:12px;font-weight:900;padding:9px 12px}.h5pia-preview-correct{border:1px solid #dbe5ec;background:#fff;color:#00205b}.h5pia-preview-approve{border:0;background:#70ad47;color:#fff}',
-    '@media(min-width:680px){.h5pia-preview-overlay{padding:22px}.h5pia-preview-foot{grid-template-columns:1fr auto;align-items:center}.h5pia-preview-actions{grid-template-columns:auto auto}.h5pia-preview-frame{min-height:65vh}}'
-  ].join('\n');
-  document.head.appendChild(style);
-
-  const overlay = document.createElement('div');
-  overlay.id = 'h5pPreviewOverlay';
-  overlay.className = 'h5pia-preview-overlay';
-  overlay.hidden = true;
-  overlay.innerHTML = [
-    '<section class="h5pia-preview-shell" role="dialog" aria-modal="true" aria-labelledby="h5pPreviewTitle">',
-    '<header class="h5pia-preview-head"><div><strong id="h5pPreviewTitle">Vista previa H5P</strong><span>Renderizada por el motor real de Moodle · no se publica en el Banco de contenido</span></div><button id="h5pPreviewClose" class="h5pia-preview-close" type="button">✕ Cerrar</button></header>',
-    '<div class="h5pia-preview-frame-wrap"><iframe id="h5pPreviewFrame" class="h5pia-preview-frame" title="Vista previa de la actividad H5P"></iframe></div>',
-    '<footer class="h5pia-preview-foot"><p class="h5pia-preview-note">Interactúa con la actividad como lo haría un participante. Si algo está mal, cierra la vista previa y corrige o genera de nuevo. Solo publica cuando la hayas aprobado.</p><div class="h5pia-preview-actions"><button id="h5pPreviewCorrect" class="h5pia-preview-correct" type="button">Cerrar para corregir</button><button id="h5pPreviewApprove" class="h5pia-preview-approve" type="button">✓ Se ve bien · aprobar</button></div></footer>',
-    '</section>'
-  ].join('');
-  document.body.appendChild(overlay);
-  previewBtn.addEventListener('click', createH5pPreview);
-  $('h5pPreviewClose').addEventListener('click', ()=>{ overlay.hidden=true; });
-  $('h5pPreviewCorrect').addEventListener('click', ()=>{ previewApprovedFingerprint=''; overlay.hidden=true; updateFinalButtons(); });
-  $('h5pPreviewApprove').addEventListener('click', ()=>{
-    previewApprovedFingerprint = previewFingerprint();
-    overlay.hidden = true;
-    showStatus($('finalStatus'), '✓ Vista previa aprobada. Ahora puedes descargar o publicar en Moodle.', 'ok');
-    updateFinalButtons();
-  });
-}
-
-async function cleanupActiveH5pPreview() {
-  const itemid = activePreviewItemId;
-  activePreviewItemId = 0;
-  activePreviewUrl = '';
-  const frame = document.getElementById('h5pPreviewFrame');
-  if (frame) frame.removeAttribute('src');
-  if (!itemid || !sb) return;
-  try {
-    const auth = await bridgeAuth();
-    await fetch(BRIDGE_URL, {method:'POST',headers:auth.headers,body:JSON.stringify({action:'preview_cleanup',accessToken:auth.token,previewItemId:itemid})});
-  } catch (_) {}
-}
-
-async function createH5pPreview() {
-  const button = $('previewH5pBtn');
-  if (!generatedParams || !selectedLibrary || !proposal) return;
-  try {
-    previewApprovedFingerprint = '';
-    setBusy(button, true, 'Preparando vista previa…');
-    showStatus($('finalStatus'), 'Moodle está validando y preparando una vista previa temporal. No se publicará en el Banco de contenido.');
-    const auth = await bridgeAuth();
-    const response = await fetch(BRIDGE_URL, {method:'POST',headers:auth.headers,body:JSON.stringify(bridgePayload('preview',auth.token))});
-    const data = await response.json().catch(()=>({}));
-    if (!response.ok || !data?.ok || !data?.preview?.previewUrl) throw new Error(data.error || 'No se pudo crear la vista previa H5P.');
-    activePreviewItemId = Number(data.preview.itemId || 0);
-    activePreviewUrl = String(data.preview.previewUrl);
-    $('h5pPreviewFrame').src = activePreviewUrl;
-    $('h5pPreviewOverlay').hidden = false;
-    showStatus($('finalStatus'), 'Vista previa temporal abierta. Revísala y apruébala antes de publicar.', 'ok');
-  } catch (error) {
-    showStatus($('finalStatus'), error.message || 'No se pudo abrir la vista previa H5P.', 'err');
-  } finally {
-    setBusy(button, false);
-    updateFinalButtons();
-  }
-}
-
-checkBridge = async function() {
-  bridgeReady = false;
-  bridgeSupportsAssets = false;
-  bridgeSupportsPreview = false;
-  if (!sb) return;
-  try {
-    const {data:{session}} = await sb.auth.getSession();
-    if (!session?.access_token) return;
-    const response = await fetch(BRIDGE_URL, {method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer ' + session.access_token},body:JSON.stringify({action:'status',accessToken:session.access_token})});
-    if (!response.ok) return;
-    const data = await response.json();
-    bridgeReady = Boolean(data?.ok && data?.canPackage && data?.canPublish);
-    bridgeSupportsAssets = Boolean(data?.canAssets);
-    bridgeSupportsPreview = Boolean(data?.canPreview);
-  } catch (_) {
-    bridgeReady = false;
-  }
-  updateFinalButtons();
-};
-
-const h5piaOriginalUpdateFinalButtons = updateFinalButtons;
-updateFinalButtons = function() {
-  h5piaOriginalUpdateFinalButtons();
-  ensureH5pPreviewUI();
-  const button = $('previewH5pBtn');
-  if (!button) return;
-  const ready = Boolean(generatedParams && selectedLibrary);
-  const hasAssets = Boolean(proposal?.assets?.length);
-  const bridgeOk = bridgeReady && (!hasAssets || bridgeSupportsAssets);
-  button.disabled = !ready || !bridgeOk || !bridgeSupportsPreview;
-  const approved = Boolean(ready && previewApprovedFingerprint && previewApprovedFingerprint === previewFingerprint());
-  $('publishBtn').disabled = !ready || !bridgeOk || !bridgeSupportsPreview || !approved;
-  if (ready && bridgeOk && !bridgeSupportsPreview) {
-    showStatus($('finalStatus'), 'El H5P está generado. Actualiza el puente Moodle H5P IA a 1.3.0 para activar la vista previa segura antes de publicar.', 'warn');
-  } else if (ready && bridgeOk && bridgeSupportsPreview && !approved) {
-    showStatus($('finalStatus'), 'Antes de publicar: abre Vista previa H5P, pruébala y pulsa “Se ve bien · aprobar”.', 'warn');
-  } else if (approved) {
-    showStatus($('finalStatus'), '✓ Vista previa aprobada. Puedes descargar o publicar en Moodle.', 'ok');
-  }
-};
-
-const h5piaOriginalPublishToMoodle = publishToMoodle;
-publishToMoodle = async function() {
-  if (previewApprovedFingerprint !== previewFingerprint()) {
-    showStatus($('finalStatus'), 'Primero revisa y aprueba la Vista previa H5P. Así evitamos publicar pruebas defectuosas en el Banco de contenido.', 'warn');
-    return;
-  }
-  await h5piaOriginalPublishToMoodle();
-};
-
 function bind() {
   $('syncBtn').addEventListener('click', syncRegistry);
   $('library').addEventListener('change', onLibraryChange);
@@ -841,6 +791,9 @@ function bind() {
 function boot(detail) {
   if (sb) return;
   sb = detail.sb;
+  const publish = $('publishBtn');
+  if (publish) publish.hidden = true;
+  ensureDriveRetryButton();
   bind();
   syncRegistry();
 }

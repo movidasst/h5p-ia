@@ -75,15 +75,18 @@
           librariesPath:base,
           frameJs:'/assets/h5p-standalone/frame.bundle.js',
           frameCss:'/assets/h5p-standalone/styles/h5p.css',
-          frame:true,
-          copyright:true,
+          embedType:'div',
+          frame:false,
+          copyright:false,
           export:false,
           icon:false,
-          fullScreen:true,
+          fullScreen:false,
           reportingIsEnabled:true
         });
+        const contentRoot=player.querySelector('.h5p-content');
+        if(!contentRoot) throw new Error('El motor H5P inició, pero no creó el contenido interactivo.');
         state.hidden=true;
-        send('ready',{mainLibrary:String(h5p.mainLibrary||'')});
+        send('ready',{mainLibrary:String(h5p.mainLibrary||''),rendered:true});
       }catch(error){fail(error);}
     }
     start();

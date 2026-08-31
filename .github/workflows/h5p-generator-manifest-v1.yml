@@ -1,0 +1,156 @@
+name: H5P generator manifest finalizer V1
+
+on:
+  push:
+    paths:
+      - '.github/workflows/h5p-generator-manifest-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply generator manifest patch
+        run: python3 scripts/fix-generated-h5p-manifest.py
+
+      - name: Check 1 - syntax and isolation
+        run: |
+          node --check app.js
+          git diff --exit-code -- auth.js catalog-h5p.js index.html h5p-viewer-frame.html h5p-compat.js
+          grep -q 'H5P_GENERATOR_MANIFEST_FINALIZER_V1' app.js
+          grep -q 'const finalized=await finalizeGeneratedH5pPackage(rawBlob)' app.js
+          grep -q 'manifestDependenciesAdded:finalized.added' app.js
+
+      - name: Prepare actual ZIP finalizer test
+        run: |
+          mkdir -p /tmp/h5p-finalizer
+          npm install --prefix /tmp/h5p-finalizer --no-save --package-lock=false jszip@3.10.1 >/tmp/npm-jszip.log 2>&1
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('app.js').read_text(encoding='utf-8')
+          hstart=text.index('// H5P_VIEWER_DYNAMIC_DEPS_V1')
+          hend=text.index('async function cacheH5pPackage',hstart)
+          helper=text[hstart:hend]
+          fstart=text.index('// H5P_GENERATOR_MANIFEST_FINALIZER_V1')
+          fend=text.index('async function prepareValidatedH5pBlob',fstart)
+          finalizer=text[fstart:fend]
+          prelude=r'''
+          const JSZip=require('/tmp/h5p-finalizer/node_modules/jszip');
+          global.window={JSZip};
+          async function assertH5pZipBlob(blob){if(!(blob instanceof Blob)||blob.size<4)throw new Error('invalid blob');}
+          async function ensureH5pViewerRuntime(){window.JSZip=JSZip;}
+          function findH5pZipRoot(zip){
+            if(zip.file('h5p.json')&&zip.file('content/content.json'))return '';
+            throw new Error('root not found');
+          }
+          function h5pSafeZipPath(value){return String(value||'').replace(/^\/+/, '');}
+          '''
+          fixture=r'''
+          async function buildFixture(includeCoursePresentation=true){
+            const zip=new JSZip();
+            const manifest={
+              title:'Humo fixture',
+              mainLibrary:'H5P.BranchingScenario',
+              preloadedDependencies:[
+                {machineName:'H5P.BranchingScenario',majorVersion:1,minorVersion:11},
+                {machineName:'FontAwesome',majorVersion:4,minorVersion:5}
+              ]
+            };
+            const content={branchingScenario:{content:[
+              {type:{library:'H5P.CoursePresentation 1.27',params:{presentation:{slides:[{elements:[
+                {action:{library:'H5P.Image 1.1',params:{}}},
+                {action:{library:'H5P.AdvancedText 1.1',params:{}}}
+              ]}]}}}},
+              {type:{library:'H5P.BranchingQuestion 1.0',params:{}}}
+            ]}};
+            zip.file('h5p.json',JSON.stringify(manifest));
+            zip.file('content/content.json',JSON.stringify(content));
+            zip.file('H5P.BranchingScenario-1.11/library.json','{}');
+            zip.file('FontAwesome-4.5/library.json','{}');
+            if(includeCoursePresentation)zip.file('H5P.CoursePresentation-1.27/library.json','{}');
+            zip.file('H5P.Image-1.1/library.json','{}');
+            zip.file('H5P.AdvancedText-1.1/library.json','{}');
+            zip.file('H5P.BranchingQuestion-1.0/library.json','{}');
+            const buf=await zip.generateAsync({type:'nodebuffer'});
+            return new Blob([buf],{type:'application/zip'});
+          }
+
+          (async()=>{
+            const raw=await buildFixture(true);
+            const out=await finalizeGeneratedH5pPackage(raw);
+            if(out.added!==4)throw new Error(`Expected 4 added dependencies, got ${out.added}`);
+            const finalZip=await JSZip.loadAsync(await out.blob.arrayBuffer());
+            const finalManifest=JSON.parse(await finalZip.file('h5p.json').async('string'));
+            const keys=new Set(finalManifest.preloadedDependencies.map(d=>`${d.machineName}@${d.majorVersion}.${d.minorVersion}`));
+            const required=[
+              'H5P.CoursePresentation@1.27',
+              'H5P.Image@1.1',
+              'H5P.AdvancedText@1.1',
+              'H5P.BranchingQuestion@1.0'
+            ];
+            for(const key of required)if(!keys.has(key))throw new Error(`Final h5p.json missing ${key}`);
+
+            const second=await finalizeGeneratedH5pPackage(out.blob);
+            if(second.added!==0)throw new Error(`Final package was not idempotent; added ${second.added}`);
+
+            let missingDetected=false;
+            try{await finalizeGeneratedH5pPackage(await buildFixture(false));}
+            catch(error){missingDetected=/CoursePresentation 1\.27/.test(String(error.message||error));}
+            if(!missingDetected)throw new Error('Physically missing nested library was not rejected');
+
+            console.log(JSON.stringify({
+              firstPassAdded:out.added,
+              secondPassAdded:second.added,
+              declared:[...keys].filter(k=>required.includes(k)),
+              missingLibraryRejected:missingDetected
+            }));
+          })().catch(error=>{console.error(error);process.exit(2);});
+          '''
+          Path('/tmp/generated-h5p-finalizer-test.cjs').write_text(prelude+'\n'+helper+'\n'+finalizer+'\n'+fixture,encoding='utf-8')
+          PY
+          node --check /tmp/generated-h5p-finalizer-test.cjs
+
+      - name: Check 2 - generated ZIP contains corrected h5p.json
+        run: node /tmp/generated-h5p-finalizer-test.cjs
+
+      - name: Check 3 - delivery paths use only finalized Blob
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('app.js').read_text(encoding='utf-8')
+          start=text.index('async function prepareValidatedH5pBlob()')
+          end=text.index('async function downloadH5P()',start)
+          block=text[start:end]
+          required=[
+            'const rawBlob=await response.blob();',
+            'const finalized=await finalizeGeneratedH5pPackage(rawBlob);',
+            'const blob=finalized.blob;',
+            'lastValidatedH5p={'
+          ]
+          pos=-1
+          for needle in required:
+            newpos=block.find(needle)
+            if newpos<0 or newpos<=pos:
+              raise SystemExit(f'Finalization order failed at: {needle}')
+            pos=newpos
+          if 'lastValidatedH5p={blob,filename,fingerprint}' in block:
+            raise SystemExit('Old unfinalized assignment still present')
+          print('finalized Blob delivery order: OK')
+          PY
+
+      - name: Commit only fully validated production file
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.js
+          if git diff --cached --quiet; then
+            echo 'No production changes to commit'
+          else
+            git commit -m 'Write dynamic dependencies into generated H5P manifests'
+            git push
+          fi

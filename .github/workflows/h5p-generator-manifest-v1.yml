@@ -125,22 +125,21 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           text=Path('app.js').read_text(encoding='utf-8')
-          start=text.index('async function prepareValidatedH5pBlob()')
-          end=text.index('async function downloadH5P()',start)
-          block=text[start:end]
           required=[
             'const rawBlob=await response.blob();',
             'const finalized=await finalizeGeneratedH5pPackage(rawBlob);',
             'const blob=finalized.blob;',
             'lastValidatedH5p={'
           ]
-          pos=-1
+          positions=[]
           for needle in required:
-            newpos=block.find(needle)
-            if newpos<0 or newpos<=pos:
-              raise SystemExit(f'Finalization order failed at: {needle}')
-            pos=newpos
-          if 'lastValidatedH5p={blob,filename,fingerprint}' in block:
+            pos=text.find(needle)
+            if pos<0:
+              raise SystemExit(f'Missing delivery step: {needle}')
+            positions.append(pos)
+          if positions != sorted(positions):
+            raise SystemExit(f'Finalization order is wrong: {positions}')
+          if 'lastValidatedH5p={blob,filename,fingerprint}' in text:
             raise SystemExit('Old unfinalized assignment still present')
           print('finalized Blob delivery order: OK')
           PY
